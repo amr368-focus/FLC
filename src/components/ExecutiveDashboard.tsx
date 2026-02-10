@@ -1,5 +1,7 @@
-import { AlertCircle, CheckCircle2, Clock, TrendingUp, Target, BarChart3, Calendar, FolderKanban } from 'lucide-react';
-import { Project, Task, CompanyGoal, Department, calculateProgress, deriveStatus } from '../types';
+import { useState } from 'react';
+import { AlertCircle, CheckCircle2, Clock, TrendingUp, Target, BarChart3, Calendar, FolderKanban, ChevronRight, ChevronDown } from 'lucide-react';
+import { Project, Task, CompanyGoal, Department, TaskStatus, calculateProgress, deriveStatus } from '../types';
+import { StatusCell, OwnerCell, DateCell } from './StatusCells';
 
 interface ExecutiveDashboardProps {
   projects: Project[];
@@ -12,6 +14,7 @@ interface ExecutiveDashboardProps {
   onViewActiveProjects: () => void;
   onViewCompletedTasks: () => void;
   onTaskClick: (task: Task) => void;
+  onUpdateTask?: (taskId: string, updates: Partial<Task>) => void;
   onViewGoals: () => void;
   onDepartmentSelect?: (department: Department) => void;
 }
@@ -22,9 +25,10 @@ const statusConfig = {
   'on-track': { label: 'On Track', color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200', dot: 'bg-green-600' },
 };
 
-export function ExecutiveDashboard({ projects, tasks, goals, onProjectClick, onViewAllProjects, onViewOverdue, onViewDueThisWeek, onViewActiveProjects, onViewCompletedTasks, onTaskClick, onViewGoals, onDepartmentSelect }: ExecutiveDashboardProps) {
+export function ExecutiveDashboard({ projects, tasks, goals, onProjectClick, onViewAllProjects, onViewOverdue, onViewDueThisWeek, onViewActiveProjects, onViewCompletedTasks, onTaskClick, onUpdateTask, onViewGoals, onDepartmentSelect }: ExecutiveDashboardProps) {
   const now = new Date();
   const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const [expandedInitiatives, setExpandedInitiatives] = useState<Set<string>>(new Set());
 
   // Helper to get derived status for a project based on its tasks
   const getProjectStatus = (projectId: string) => {
@@ -90,90 +94,100 @@ export function ExecutiveDashboard({ projects, tasks, goals, onProjectClick, onV
     return acc;
   }, {} as Record<string, { total: number; atRisk: number; onTrack: number; attention: number }>);
 
+  const toggleInitiative = (projectId: string) => {
+    const next = new Set(expandedInitiatives);
+    if (next.has(projectId)) {
+      next.delete(projectId);
+    } else {
+      next.add(projectId);
+    }
+    setExpandedInitiatives(next);
+  };
+
   return (
     <div className="flex-1 bg-gray-50 overflow-auto">
       <div className="p-8">
         <div className="mb-8">
-          <h1 className="text-2xl font-semibold text-gray-900 mb-1">Executive Dashboard</h1>
+          <h1 className="text-2xl font-semibold text-gray-900 mb-2">Executive Dashboard</h1>
           <p className="text-sm text-gray-600">Portfolio overview and key metrics at a glance</p>
         </div>
 
         {/* Metric Cards - Compact Horizontal Row */}
-        <div className="flex gap-3 mb-6 overflow-x-auto pb-2">
+        <div className="flex gap-4 mb-8 overflow-x-auto pb-2">
           <div 
             onClick={onViewActiveProjects}
-            className="flex items-center gap-3 bg-white rounded-lg border border-gray-200 px-4 py-3 hover:shadow-md transition-shadow cursor-pointer min-w-fit"
+            className="flex items-center gap-4 bg-white rounded-lg border border-gray-200 px-5 py-4 hover:shadow-md transition-shadow cursor-pointer min-w-fit"
           >
-            <div className="p-1.5 bg-gray-100 rounded">
-              <FolderKanban className="w-4 h-4 text-gray-600" />
+            <div className="p-2 bg-gray-100 rounded-lg">
+              <FolderKanban className="w-5 h-5 text-gray-600" />
             </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-xl font-semibold text-gray-900">{activeProjects.length}</span>
-              <span className="text-xs text-gray-600">Active</span>
+            <div className="flex items-baseline gap-3">
+              <span className="text-2xl font-semibold text-gray-900">{activeProjects.length}</span>
+              <span className="text-sm text-gray-600">Active</span>
             </div>
           </div>
 
           <div 
             onClick={onViewCompletedTasks}
-            className="flex items-center gap-3 bg-white rounded-lg border border-gray-200 px-4 py-3 hover:shadow-md transition-shadow cursor-pointer min-w-fit"
+            className="flex items-center gap-4 bg-white rounded-lg border border-gray-200 px-5 py-4 hover:shadow-md transition-shadow cursor-pointer min-w-fit"
           >
-            <div className="p-1.5 bg-green-100 rounded">
-              <CheckCircle2 className="w-4 h-4 text-green-600" />
+            <div className="p-2 bg-green-100 rounded-lg">
+              <CheckCircle2 className="w-5 h-5 text-green-600" />
             </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-xl font-semibold text-gray-900">{completedTasks.length}/{tasks.length}</span>
-              <span className="text-xs text-gray-600">Tasks Done</span>
+            <div className="flex items-baseline gap-3">
+              <span className="text-2xl font-semibold text-gray-900">{completedTasks.length}/{tasks.length}</span>
+              <span className="text-sm text-gray-600">Tasks Done</span>
             </div>
           </div>
 
           <div 
             onClick={onViewOverdue}
-            className="flex items-center gap-3 bg-white rounded-lg border border-gray-200 px-4 py-3 hover:shadow-md transition-shadow cursor-pointer min-w-fit"
+            className="flex items-center gap-4 bg-white rounded-lg border border-gray-200 px-5 py-4 hover:shadow-md transition-shadow cursor-pointer min-w-fit"
           >
-            <div className="p-1.5 bg-red-100 rounded">
-              <AlertCircle className="w-4 h-4 text-red-600" />
+            <div className="p-2 bg-red-100 rounded-lg">
+              <AlertCircle className="w-5 h-5 text-red-600" />
             </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-xl font-semibold text-gray-900">{overdueTasks.length}</span>
-              <span className="text-xs text-gray-600">Overdue</span>
+            <div className="flex items-baseline gap-3">
+              <span className="text-2xl font-semibold text-gray-900">{overdueTasks.length}</span>
+              <span className="text-sm text-gray-600">Overdue</span>
             </div>
           </div>
 
           <div 
             onClick={onViewDueThisWeek}
-            className="flex items-center gap-3 bg-white rounded-lg border border-gray-200 px-4 py-3 hover:shadow-md transition-shadow cursor-pointer min-w-fit"
+            className="flex items-center gap-4 bg-white rounded-lg border border-gray-200 px-5 py-4 hover:shadow-md transition-shadow cursor-pointer min-w-fit"
           >
-            <div className="p-1.5 bg-yellow-100 rounded">
-              <Clock className="w-4 h-4 text-yellow-600" />
+            <div className="p-2 bg-yellow-100 rounded-lg">
+              <Clock className="w-5 h-5 text-yellow-600" />
             </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-xl font-semibold text-gray-900">{dueThisWeek.length}</span>
-              <span className="text-xs text-gray-600">Due Soon</span>
+            <div className="flex items-baseline gap-3">
+              <span className="text-2xl font-semibold text-gray-900">{dueThisWeek.length}</span>
+              <span className="text-sm text-gray-600">Due Soon</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 bg-white rounded-lg border border-gray-200 px-4 py-3 min-w-fit">
-            <div className="flex items-center gap-2 text-xs">
-              <span className="w-2 h-2 rounded-full bg-green-500"></span>
-              <span className="text-gray-600">{onTrack} On Track</span>
+          <div className="flex items-center gap-6 bg-white rounded-lg border border-gray-200 px-5 py-4 min-w-fit">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="w-3 h-3 rounded-full bg-green-500"></span>
+              <span className="text-gray-700">{onTrack} On Track</span>
             </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-              <span className="text-gray-600">{attention} Attention</span>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="w-3 h-3 rounded-full bg-orange-500"></span>
+              <span className="text-gray-700">{attention} Attention</span>
             </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="w-2 h-2 rounded-full bg-red-500"></span>
-              <span className="text-gray-600">{atRisk} At Risk</span>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="w-3 h-3 rounded-full bg-red-500"></span>
+              <span className="text-gray-700">{atRisk} At Risk</span>
             </div>
           </div>
         </div>
 
         {/* Portfolio Timeline (Gantt-style) */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-          <div className="flex items-center justify-between mb-6">
+        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-gray-600" />
-              <h2 className="text-lg font-semibold text-gray-900">Portfolio Timeline</h2>
+              <h2 className="text-base font-semibold text-gray-900">Portfolio Timeline</h2>
             </div>
             <button 
               onClick={onViewAllProjects}
@@ -184,90 +198,183 @@ export function ExecutiveDashboard({ projects, tasks, goals, onProjectClick, onV
           </div>
 
           {/* Timeline Header */}
-          <div className="flex border-b border-gray-200 pb-2 mb-4">
-            <div className="w-48 flex-shrink-0 text-xs font-medium text-gray-500 uppercase">Initiative</div>
-            <div className="flex-1 flex">
+          <div className="flex border-b border-gray-200 pb-2 mb-3">
+            <div className="w-40 flex-shrink-0 text-[11px] font-medium text-gray-500 uppercase">Initiative</div>
+            <div className="flex-1 grid grid-cols-4">
               {timelineMonths.map((month, idx) => (
-                <div key={idx} className="flex-1 text-center text-xs font-medium text-gray-500 uppercase">
+                <div key={idx} className="text-center text-[11px] font-medium text-gray-500 uppercase border-l border-gray-200 first:border-l-0">
                   {month.label} {month.year}
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Timeline Rows */}
-          <div className="space-y-3">
+          <div className="space-y-2">
             {keyInitiatives.slice(0, 6).map((project) => {
               const position = getBarPosition(project);
               const progress = getProjectProgress(project.id);
+              const projectTasks = tasks.filter(t => t.projectId === project.id);
+              const isExpanded = expandedInitiatives.has(project.id);
               const config = statusConfig[getProjectStatus(project.id)];
-              
+              const barColor = config.label === 'At Risk' ? '#EF4444' : config.label === 'Attention' ? '#F59E0B' : '#10B981';
+
               return (
-                <div key={project.id} className="flex items-center group">
-                  <div 
-                    className="w-48 flex-shrink-0 pr-4 cursor-pointer"
-                    onClick={() => onProjectClick(project)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: project.color }} />
-                      <span className="text-sm font-medium text-gray-900 truncate group-hover:text-blue-600">
-                        {project.name}
-                      </span>
-                    </div>
-                    <div className="text-xs text-gray-500 ml-4">{project.owner}</div>
-                  </div>
-                  <div className="flex-1 relative h-8 bg-gray-50 rounded">
-                    {/* Month grid lines */}
-                    <div className="absolute inset-0 flex">
-                      {timelineMonths.map((_, idx) => (
-                        <div key={idx} className="flex-1 border-r border-gray-200 last:border-r-0" />
-                      ))}
-                    </div>
-                    {/* Today indicator */}
-                    <div 
-                      className="absolute top-0 bottom-0 w-0.5 bg-blue-500 z-10"
-                      style={{ 
-                        left: `${((now.getTime() - timelineStart.getTime()) / (1000 * 60 * 60 * 24) / totalDays * 100)}%` 
-                      }}
-                    />
-                    {/* Project bar */}
-                    <div
-                      className="absolute top-1 bottom-1 rounded cursor-pointer transition-all hover:shadow-md"
-                      style={{
-                        left: position.left,
-                        width: position.width,
-                        backgroundColor: project.color,
-                        opacity: 0.8,
-                      }}
+                <div key={project.id} className="group">
+                  <div className="flex items-center">
+                    <button
+                      type="button"
+                      className="w-40 flex-shrink-0 pr-3 text-left"
                       onClick={() => onProjectClick(project)}
+                      onDoubleClick={() => toggleInitiative(project.id)}
+                      title="Double-click to expand tasks"
                     >
-                      {/* Progress overlay */}
-                      <div 
-                        className="absolute inset-0 rounded bg-black/20"
-                        style={{ width: `${100 - progress}%`, right: 0, left: 'auto' }}
-                      />
-                      <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-white">
-                        {progress}%
+                      <div className="flex items-center gap-1 text-xs font-medium text-gray-700 group-hover:text-blue-600">
+                        {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                        <span className="truncate">{project.name}</span>
+                      </div>
+                    </button>
+
+                    <div className="flex-1 pr-3">
+                      <div className="relative h-6 rounded border border-gray-200 bg-gray-50">
+                        <div
+                          className="absolute top-0 h-full rounded"
+                          style={{ left: position.left, width: position.width, backgroundColor: barColor }}
+                        >
+                          <div className="absolute inset-0 rounded bg-black/20" />
+                          <span className="absolute inset-0 flex items-center justify-center text-[11px] font-medium text-white">
+                            {progress}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="w-20 flex-shrink-0 pl-3">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${config.color} ${config.bg}`}>
+                        <div className={`w-1 h-1 rounded-full ${config.dot}`} />
+                        {config.label.substring(0, 6)}
                       </span>
                     </div>
                   </div>
-                  <div className="w-20 flex-shrink-0 pl-3">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${config.color} ${config.bg}`}>
-                      <div className={`w-1 h-1 rounded-full ${config.dot}`} />
-                      {config.label.substring(0, 6)}
-                    </span>
-                  </div>
+
+                  {isExpanded && (
+                    <div className="ml-10 mt-2 mb-1 bg-white border border-gray-100 rounded-md">
+                      {projectTasks.length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-gray-500">No tasks</div>
+                      ) : (
+                        (() => {
+                          const parentTasks = projectTasks.filter(t => !t.parentTaskId);
+                          const childTasks = projectTasks.filter(t => t.parentTaskId);
+                          const childByParent = childTasks.reduce((acc, task) => {
+                            const key = task.parentTaskId as string;
+                            if (!acc[key]) acc[key] = [];
+                            acc[key].push(task);
+                            return acc;
+                          }, {} as Record<string, Task[]>);
+
+                          return parentTasks.map((task) => {
+                            const children = childByParent[task.id] || [];
+                            return (
+                              <div key={task.id}>
+                                {/* Parent Task Row */}
+                                <div className="grid grid-cols-12 gap-2 px-3 py-1.5 border-t border-gray-100 first:border-t-0 items-center">
+                                  <div className="col-span-5 flex items-center gap-1.5">
+                                    <span className="text-xs text-gray-700 truncate">{task.title}</span>
+                                    {children.length > 0 && (
+                                      <span className="text-[10px] text-gray-400">({children.length})</span>
+                                    )}
+                                  </div>
+                                  <div className="col-span-2">
+                                    {onUpdateTask ? (
+                                      <StatusCell
+                                        value={task.status}
+                                        type="task"
+                                        onChange={(newStatus) => onUpdateTask(task.id, { status: newStatus as TaskStatus })}
+                                        size="sm"
+                                      />
+                                    ) : (
+                                      <span className="text-xs text-gray-500">{task.status}</span>
+                                    )}
+                                  </div>
+                                  <div className="col-span-3">
+                                    {onUpdateTask ? (
+                                      <OwnerCell
+                                        value={task.assignee}
+                                        onChange={(newAssignee) => onUpdateTask(task.id, { assignee: newAssignee })}
+                                      />
+                                    ) : (
+                                      <span className="text-xs text-gray-600 truncate">{task.assignee}</span>
+                                    )}
+                                  </div>
+                                  <div className="col-span-2">
+                                    {onUpdateTask ? (
+                                      <DateCell
+                                        value={task.dueDate}
+                                        onChange={(newDate) => onUpdateTask(task.id, { dueDate: newDate })}
+                                      />
+                                    ) : (
+                                      <span className="text-xs text-gray-500">{task.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                                    )}
+                                  </div>
+                                </div>
+                                {/* Subtask Rows */}
+                                {children.map((child) => (
+                                  <div key={child.id} className="grid grid-cols-12 gap-2 px-3 py-1 border-t border-gray-50 items-center bg-gray-50/30">
+                                    <div className="col-span-5 flex items-center gap-1.5 pl-4">
+                                      <span className="text-[10px] text-gray-400">↳</span>
+                                      <span className="text-xs text-gray-600 truncate">{child.title}</span>
+                                    </div>
+                                    <div className="col-span-2">
+                                      {onUpdateTask ? (
+                                        <StatusCell
+                                          value={child.status}
+                                          type="task"
+                                          onChange={(newStatus) => onUpdateTask(child.id, { status: newStatus as TaskStatus })}
+                                          size="sm"
+                                        />
+                                      ) : (
+                                        <span className="text-xs text-gray-500">{child.status}</span>
+                                      )}
+                                    </div>
+                                    <div className="col-span-3">
+                                      {onUpdateTask ? (
+                                        <OwnerCell
+                                          value={child.assignee}
+                                          onChange={(newAssignee) => onUpdateTask(child.id, { assignee: newAssignee })}
+                                        />
+                                      ) : (
+                                        <span className="text-xs text-gray-600 truncate">{child.assignee}</span>
+                                      )}
+                                    </div>
+                                    <div className="col-span-2">
+                                      {onUpdateTask ? (
+                                        <DateCell
+                                          value={child.dueDate}
+                                          onChange={(newDate) => onUpdateTask(child.id, { dueDate: newDate })}
+                                        />
+                                      ) : (
+                                        <span className="text-xs text-gray-500">{child.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          });
+                        })()
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {/* Portfolio Overview */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-gray-900">Key Initiatives</h2>
+          <div className="bg-white rounded-md border border-gray-200 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-gray-900">Key Initiatives</h2>
               <button 
                 onClick={onViewAllProjects}
                 className="text-sm text-blue-600 hover:text-blue-700"
@@ -276,7 +383,7 @@ export function ExecutiveDashboard({ projects, tasks, goals, onProjectClick, onV
               </button>
             </div>
 
-            <div className="flex items-center gap-4 mb-6">
+            <div className="flex items-center gap-4 mb-4">
               <div className="flex items-center gap-2 text-sm">
                 <div className="w-2 h-2 rounded-full bg-red-600"></div>
                 <span className="text-gray-600">{atRisk} At Risk</span>
@@ -291,7 +398,7 @@ export function ExecutiveDashboard({ projects, tasks, goals, onProjectClick, onV
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               {keyInitiatives.slice(0, 4).map((project) => {
                 const status = getProjectStatus(project.id);
                 const config = statusConfig[status];
@@ -304,20 +411,20 @@ export function ExecutiveDashboard({ projects, tasks, goals, onProjectClick, onV
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1">
-                        <h3 className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                        <h3 className="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
                           {project.name}
                         </h3>
-                        <p className="text-sm text-gray-600 mt-0.5">
+                        <p className="text-xs text-gray-600 mt-0.5">
                           {project.owner} • {project.department}
                         </p>
                       </div>
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${config.color} ${config.bg}`}>
+                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium ${config.color} ${config.bg}`}>
                         <div className={`w-1.5 h-1.5 rounded-full ${config.dot}`}></div>
                         {config.label}
                       </span>
                     </div>
                     <div className="relative">
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                         <div
                           className="h-full transition-all"
                           style={{
@@ -326,7 +433,7 @@ export function ExecutiveDashboard({ projects, tasks, goals, onProjectClick, onV
                           }}
                         />
                       </div>
-                      <span className="absolute -top-1 right-0 text-xs text-gray-600">
+                      <span className="absolute -top-1 right-0 text-[11px] text-gray-600">
                         {progress}%
                       </span>
                     </div>
@@ -337,10 +444,10 @@ export function ExecutiveDashboard({ projects, tasks, goals, onProjectClick, onV
           </div>
 
           {/* Department Health */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center gap-2 mb-6">
+          <div className="bg-white rounded-md border border-gray-200 p-5">
+            <div className="flex items-center gap-2 mb-4">
               <BarChart3 className="w-5 h-5 text-gray-600" />
-              <h2 className="text-lg font-semibold text-gray-900">Department Health</h2>
+              <h2 className="text-base font-semibold text-gray-900">Department Health</h2>
             </div>
 
             <div className="space-y-4">
@@ -383,11 +490,11 @@ export function ExecutiveDashboard({ projects, tasks, goals, onProjectClick, onV
           </div>
 
           {/* Overdue Items */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-6">
+          <div className="bg-white rounded-md border border-gray-200 p-5">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-5 h-5 text-red-600" />
-                <h2 className="text-lg font-semibold text-gray-900">Overdue Items</h2>
+                <h2 className="text-base font-semibold text-gray-900">Overdue Items</h2>
               </div>
               {overdueTasks.length > 0 && (
                 <div 
@@ -399,9 +506,9 @@ export function ExecutiveDashboard({ projects, tasks, goals, onProjectClick, onV
               )}
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2">
               {overdueTasks.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-8">No overdue items 🎉</p>
+                <p className="text-sm text-gray-500 text-center py-6">No overdue items</p>
               ) : (
                 overdueTasks.slice(0, 4).map((task) => {
                   const project = projects.find(p => p.id === task.projectId);
@@ -411,10 +518,10 @@ export function ExecutiveDashboard({ projects, tasks, goals, onProjectClick, onV
                     <div 
                       key={task.id} 
                       onClick={() => onTaskClick(task)}
-                      className="p-3 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 cursor-pointer transition-colors"
+                      className="p-2.5 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 cursor-pointer transition-colors"
                     >
-                      <h3 className="font-medium text-gray-900 mb-1">{task.title}</h3>
-                      <p className="text-sm text-gray-600 mb-2">
+                      <h3 className="text-sm font-medium text-gray-900 mb-1">{task.title}</h3>
+                      <p className="text-xs text-gray-600 mb-2">
                         {project?.name}
                       </p>
                       <div className="flex items-center justify-between text-xs">

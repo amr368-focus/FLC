@@ -183,3 +183,55 @@
 html {
   font-size: var(--font-size);
 }
+
+/* ========================================
+   Professional Button Styles
+   ======================================== */
+
+.btn-teal {
+  background-color: #0d3b66;
+  color: #ffffff;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-teal:hover {
+  background-color: #0a2d4d;
+}
+
+.btn-teal:focus {
+  outline: 2px solid #0d3b66;
+  outline-offset: 2px;
+}
+
+.btn-teal:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+}
+
+/* Secondary button style */
+.btn-secondary {
+  background-color: #f3f4f6;
+  color: #374151;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid #d1d5db;
+}
+
+.btn-secondary:hover {
+  background-color: #e5e7eb;
+}
+
+/* Danger/destructive button */
+.btn-danger {
+  background-color: #dc2626;
+  color: #ffffff;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-danger:hover {
+  background-color: #b91c1c;
+}

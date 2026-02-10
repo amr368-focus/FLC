@@ -1,12 +1,17 @@
+import { useState } from 'react';
+import { Settings } from 'lucide-react';
 import { Department } from '../types';
 
 interface NavigationProps {
   currentView: 'home' | 'dashboard' | 'departments' | 'team' | 'portfolio' | 'goals' | 'workbreakdown' | 'timeline' | 'pmo';
   onViewChange: (view: 'home' | 'dashboard' | 'departments' | 'team' | 'portfolio' | 'goals' | 'workbreakdown' | 'timeline' | 'pmo') => void;
   onDepartmentSelect: (dept: Department) => void;
+  onOpenSettings?: () => void;
 }
 
-export function Navigation({ currentView, onViewChange, onDepartmentSelect }: NavigationProps) {
+export function Navigation({ currentView, onViewChange, onDepartmentSelect, onOpenSettings }: NavigationProps) {
+  const [dashOpen, setDashOpen] = useState(false);
+
   return (
     <nav className="h-16 w-full flex items-center justify-between px-6 gap-4" style={{ backgroundColor: '#10285A' }}>
       <button onClick={() => onViewChange('home')} className="flex items-center gap-3 hover:opacity-90">
@@ -30,11 +35,35 @@ export function Navigation({ currentView, onViewChange, onDepartmentSelect }: Na
           active={currentView === 'home'}
           onClick={() => onViewChange('home')}
         />
-        <NavItem
-          label="Dashboard"
-          active={currentView === 'dashboard'}
-          onClick={() => onViewChange('dashboard')}
-        />
+        <div className="relative"
+          onMouseEnter={() => setDashOpen(true)}
+          onMouseLeave={() => setDashOpen(false)}
+        >
+          <NavItem
+            label="Dashboards"
+            active={currentView === 'dashboard' || currentView === 'timeline' || currentView === 'goals'}
+            onClick={() => onViewChange('dashboard')}
+          />
+          {dashOpen && (
+            <div className="absolute left-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden min-w-[180px] z-50">
+              <DashItem
+                label="Exec"
+                active={currentView === 'dashboard'}
+                onClick={() => onViewChange('dashboard')}
+              />
+              <DashItem
+                label="Timeline"
+                active={currentView === 'timeline'}
+                onClick={() => onViewChange('timeline')}
+              />
+              <DashItem
+                label="Goals"
+                active={currentView === 'goals'}
+                onClick={() => onViewChange('goals')}
+              />
+            </div>
+          )}
+        </div>
         <NavItem
           label="All Work"
           active={currentView === 'workbreakdown'}
@@ -51,20 +80,22 @@ export function Navigation({ currentView, onViewChange, onDepartmentSelect }: Na
           onClick={() => onViewChange('portfolio')}
         />
         <NavItem
-          label="Timeline"
-          active={currentView === 'timeline'}
-          onClick={() => onViewChange('timeline')}
-        />
-        <NavItem
-          label="Goals"
-          active={currentView === 'goals'}
-          onClick={() => onViewChange('goals')}
-        />
-        <NavItem
           label="PMO Meetings"
           active={currentView === 'pmo'}
           onClick={() => onViewChange('pmo')}
         />
+      </div>
+
+      <div className="flex items-center gap-2">
+        {onOpenSettings && (
+          <button
+            onClick={onOpenSettings}
+            className="rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+            title="Settings"
+          >
+            <Settings className="h-5 w-5" />
+          </button>
+        )}
       </div>
     </nav>
   );
@@ -86,6 +117,23 @@ function NavItem({ icon, label, active, onClick }: NavItemProps) {
         : { color: 'rgba(255,255,255,0.75)' }}
       onMouseEnter={(e) => { if (!active) e.currentTarget.style.color = 'white'; }}
       onMouseLeave={(e) => { if (!active) e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
+    >
+      {label}
+    </button>
+  );
+}
+
+interface DashItemProps {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}
+
+function DashItem({ label, active, onClick }: DashItemProps) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left px-3 py-2 text-sm transition-colors ${active ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
     >
       {label}
     </button>

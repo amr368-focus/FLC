@@ -16,15 +16,15 @@ const priorityOrder = { high: 3, medium: 2, low: 1 };
 const statusOrder = { 'todo': 1, 'in-progress': 2, 'done': 3 };
 
 const priorityColors = {
-  low: 'text-gray-600 bg-gray-100',
-  medium: 'text-yellow-600 bg-yellow-100',
-  high: 'text-red-600 bg-red-100',
+  low: { bgColor: '#f1f5f9', textColor: '#475569' },
+  medium: { bgColor: '#fef3c7', textColor: '#d97706' },
+  high: { bgColor: '#fee2e2', textColor: '#dc2626' },
 };
 
 const statusColors = {
-  'todo': 'text-blue-600 bg-blue-100',
-  'in-progress': 'text-purple-600 bg-purple-100',
-  'done': 'text-green-600 bg-green-100',
+  'todo': { bgColor: '#64748b', textColor: '#ffffff' },
+  'in-progress': { bgColor: '#2563eb', textColor: '#ffffff' },
+  'done': { bgColor: '#059669', textColor: '#ffffff' },
 };
 
 export function ListView({ tasks, onEditTask, onDeleteTask, onUpdateTask }: ListViewProps) {
@@ -153,18 +153,16 @@ export function ListView({ tasks, onEditTask, onDeleteTask, onUpdateTask }: List
                   </td>
                   <td className="px-6 py-4">
                     <span
-                      className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize ${
-                        statusColors[task.status]
-                      }`}
+                      style={{ backgroundColor: statusColors[task.status].bgColor, color: statusColors[task.status].textColor }}
+                      className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize"
                     >
                       {task.status.replace('-', ' ')}
                     </span>
                   </td>
                   <td className="px-6 py-4">
                     <span
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium capitalize ${
-                        priorityColors[task.priority]
-                      }`}
+                      style={{ backgroundColor: priorityColors[task.priority].bgColor, color: priorityColors[task.priority].textColor }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium capitalize"
                     >
                       <Flag className="w-3 h-3" />
                       {task.priority}

@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { ChevronRight, ChevronDown, Building2, FolderKanban, CheckSquare, AlertCircle, CheckCircle2, Search, Plus } from 'lucide-react';
-import { Project, Task, Department, CompanyGoal, calculateProgress, deriveStatus } from '../types';
+import { ChevronRight, ChevronDown, CheckSquare, AlertCircle, CheckCircle2, Search, Plus } from 'lucide-react';
+import { Project, Task, Department, CompanyGoal, TaskStatus, TaskPriority, calculateProgress, deriveStatus } from '../types';
+import { StatusCell, PriorityCell, ProgressCell, OwnerCell, DateCell } from './StatusCells';
+import { InlineEditText } from './InlineEdit';
 
 interface WorkBreakdownViewProps {
   projects: Project[];
@@ -10,6 +12,7 @@ interface WorkBreakdownViewProps {
   onTaskClick: (task: Task) => void;
   onAddInitiative?: () => void;
   onAddTask?: (projectId: string) => void;
+  onUpdateTask?: (taskId: string, updates: Partial<Task>) => void;
 }
 
 const departments: Department[] = [
@@ -24,59 +27,67 @@ const departments: Department[] = [
 ];
 
 const taskStatusConfig = {
-  'todo': { label: 'To Do', color: 'bg-blue-100 text-blue-700' },
-  'in-progress': { label: 'In Progress', color: 'bg-purple-100 text-purple-700' },
-  'done': { label: 'Done', color: 'bg-green-100 text-green-700' },
+  'todo': { label: 'To Do', bgColor: '#64748b', textColor: '#ffffff' },
+  'in-progress': { label: 'In Progress', bgColor: '#2563eb', textColor: '#ffffff' },
+  'done': { label: 'Done', bgColor: '#059669', textColor: '#ffffff' },
 };
 
 const projectStatusConfig = {
-  'on-track': { label: 'On track', color: 'bg-emerald-100 text-emerald-700' },
-  'needs-attention': { label: 'Needs attention', color: 'bg-amber-100 text-amber-700' },
-  'at-risk': { label: 'At risk', color: 'bg-red-100 text-red-700' },
+  'on-track': { label: 'On track', bgColor: '#059669', textColor: '#ffffff' },
+  'needs-attention': { label: 'Needs attention', bgColor: '#d97706', textColor: '#ffffff' },
+  'at-risk': { label: 'At risk', bgColor: '#dc2626', textColor: '#ffffff' },
 };
 
-export function WorkBreakdownView({ projects, tasks, goals, onProjectClick, onTaskClick, onAddInitiative, onAddTask }: WorkBreakdownViewProps) {
-  const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set(departments));
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+type GroupBy = 'department' | 'initiative' | 'status';
+
+export function WorkBreakdownView({ projects, tasks, goals, onProjectClick, onTaskClick, onAddInitiative, onAddTask, onUpdateTask }: WorkBreakdownViewProps) {
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(() => new Set(projects.map(p => p.id)));
+  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'todo' | 'in-progress' | 'done'>('all');
   const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
   const [departmentFilter, setDepartmentFilter] = useState<Department | 'all'>('all');
+  const [groupBy, setGroupBy] = useState<GroupBy>('initiative');
   const [sortBy, setSortBy] = useState<'name' | 'status' | 'assignee' | 'dueDate' | 'progress'>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
   const now = new Date();
   const searchLower = searchQuery.trim().toLowerCase();
-  const assignees = Array.from(new Set(tasks.map(t => t.assignee))).sort();
+  const allAssignees = Array.from(new Set(tasks.map(t => t.assignee).filter(Boolean))).sort();
+  const assignees = allAssignees;
 
-  const toggleDept = (dept: string) => {
-    const newSet = new Set(expandedDepts);
-    if (newSet.has(dept)) {
-      newSet.delete(dept);
+  const toggleItem = (itemId: string) => {
+    const newSet = new Set(expandedItems);
+    if (newSet.has(itemId)) {
+      newSet.delete(itemId);
     } else {
-      newSet.add(dept);
+      newSet.add(itemId);
     }
-    setExpandedDepts(newSet);
+    setExpandedItems(newSet);
   };
 
-  const toggleProject = (projectId: string) => {
-    const newSet = new Set(expandedProjects);
-    if (newSet.has(projectId)) {
-      newSet.delete(projectId);
+  const toggleTask = (taskId: string) => {
+    const newSet = new Set(expandedTasks);
+    if (newSet.has(taskId)) {
+      newSet.delete(taskId);
     } else {
-      newSet.add(projectId);
+      newSet.add(taskId);
     }
-    setExpandedProjects(newSet);
+    setExpandedTasks(newSet);
   };
 
   const expandAll = () => {
-    setExpandedDepts(new Set(departments));
-    setExpandedProjects(new Set(projects.map(p => p.id)));
+    const allIds = new Set([
+      ...projects.map(p => p.id),
+      ...departments,
+      'todo', 'in-progress', 'done'
+    ]);
+    setExpandedItems(allIds);
   };
 
   const collapseAll = () => {
-    setExpandedDepts(new Set());
-    setExpandedProjects(new Set());
+    setExpandedItems(new Set());
+    setExpandedTasks(new Set());
   };
 
   const handleSortChange = (value: 'name' | 'status' | 'assignee' | 'dueDate' | 'progress') => {
@@ -131,44 +142,44 @@ export function WorkBreakdownView({ projects, tasks, goals, onProjectClick, onTa
 
   return (
     <div className="flex-1 bg-gray-50 overflow-auto">
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-lg font-semibold text-gray-900">All work</h1>
-          <div className="flex items-center gap-2">
+      <div className="p-8">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-xl font-semibold text-gray-900">All Work</h1>
+          <div className="flex items-center gap-3">
             {onAddInitiative && (
               <button
                 onClick={onAddInitiative}
-                className="btn-teal flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors shadow-sm"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0d3b66] hover:bg-[#0a2d4d] rounded-lg transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 Add Initiative
               </button>
             )}
-            <button onClick={expandAll} className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">
+            <button onClick={expandAll} className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
               Expand All
             </button>
-            <button onClick={collapseAll} className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">
+            <button onClick={collapseAll} className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
               Collapse All
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-12 gap-3 items-center mb-4">
-          <div className="relative col-span-4">
+        <div className="flex flex-wrap items-center gap-4 mb-6">
+          <div className="relative flex-1 min-w-[280px] max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
               placeholder="Search initiatives or tasks..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0d3b66] focus:border-transparent"
             />
           </div>
 
           <select
             value={departmentFilter}
             onChange={(e) => setDepartmentFilter(e.target.value as Department | 'all')}
-            className="col-span-2 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+            className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0d3b66] focus:border-transparent"
           >
             <option value="all">All Departments</option>
             {departments.map(dept => (
@@ -179,7 +190,7 @@ export function WorkBreakdownView({ projects, tasks, goals, onProjectClick, onTa
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-            className="col-span-2 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+            className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0d3b66] focus:border-transparent"
           >
             <option value="all">All Statuses</option>
             <option value="todo">To Do</option>
@@ -190,68 +201,63 @@ export function WorkBreakdownView({ projects, tasks, goals, onProjectClick, onTa
           <select
             value={assigneeFilter}
             onChange={(e) => setAssigneeFilter(e.target.value)}
-            className="col-span-2 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+            className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0d3b66] focus:border-transparent"
           >
             <option value="all">All Assignees</option>
             {assignees.map(assignee => (
               <option key={assignee} value={assignee}>{assignee}</option>
             ))}
           </select>
-          <div className="col-span-2" />
+          
+          <select
+            value={groupBy}
+            onChange={(e) => setGroupBy(e.target.value as GroupBy)}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0d3b66] focus:border-transparent"
+          >
+            <option value="initiative">Group by Initiative</option>
+            <option value="department">Group by Department</option>
+            <option value="status">Group by Status</option>
+          </select>
         </div>
 
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           {/* Column Headers */}
-          <div className="grid grid-cols-12 gap-3 px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-600 uppercase tracking-wide">
             <button
-              className="col-span-5 text-left hover:text-gray-800"
+              className="col-span-4 text-left hover:text-gray-900"
               onClick={() => handleSortChange('name')}
             >
-              Initiative / Task Name {sortBy === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+              Initiative / Task {sortBy === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
             </button>
             <button
-              className="col-span-2 text-left hover:text-gray-800"
+              className="col-span-2 text-left hover:text-gray-900"
               onClick={() => handleSortChange('status')}
             >
               Status {sortBy === 'status' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
             </button>
             <button
-              className="col-span-2 text-left hover:text-gray-800"
+              className="col-span-2 text-left hover:text-gray-900"
               onClick={() => handleSortChange('assignee')}
             >
-              Assignee {sortBy === 'assignee' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+              Owner {sortBy === 'assignee' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
             </button>
             <button
-              className="col-span-2 text-left hover:text-gray-800"
+              className="col-span-2 text-left hover:text-gray-900"
               onClick={() => handleSortChange('dueDate')}
             >
               Due Date {sortBy === 'dueDate' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
             </button>
             <button
-              className="col-span-1 text-left hover:text-gray-800"
+              className="col-span-2 text-left hover:text-gray-900"
               onClick={() => handleSortChange('progress')}
             >
               Progress {sortBy === 'progress' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
             </button>
           </div>
 
-          {departments.map(dept => {
-            if (departmentFilter !== 'all' && dept !== departmentFilter) return null;
-            const deptProjects = sortProjects(projects.filter(p => p.department === dept));
-            if (deptProjects.length === 0) return null;
-
-            return (
-              <div key={dept} className="border-b border-gray-100 last:border-b-0">
-                <div onClick={() => toggleDept(dept)} className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 cursor-pointer">
-                  {expandedDepts.has(dept) ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
-                  <Building2 className="w-4 h-4 text-gray-600" />
-                  <span className="font-medium text-gray-900 text-sm">{dept}</span>
-                  <span className="text-xs text-gray-500">({deptProjects.length})</span>
-                </div>
-
-                {expandedDepts.has(dept) && (
-                  <div>
-                    {deptProjects.map(project => {
+          {sortProjects(
+            projects.filter(p => departmentFilter === 'all' || p.department === departmentFilter)
+          ).map(project => {
                       const projectTasks = tasks.filter(t => t.projectId === project.id);
                       const projectMatchesSearch = searchLower.length === 0
                         || project.name.toLowerCase().includes(searchLower)
@@ -273,94 +279,227 @@ export function WorkBreakdownView({ projects, tasks, goals, onProjectClick, onTa
 
                       return (
                         <div key={project.id}>
-                          <div className="grid grid-cols-12 gap-3 pl-8 pr-4 py-2 hover:bg-gray-50 border-l-2 items-center" style={{ borderLeftColor: project.color }}>
-                            <div className="col-span-5 flex items-center gap-2 min-w-0">
-                              <button onClick={(e) => { e.stopPropagation(); toggleProject(project.id); }} className="p-0.5">
-                                {expandedProjects.has(project.id) ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+                          <div className="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-gray-50 border-b border-gray-100 items-center" style={{ borderLeftWidth: '3px', borderLeftColor: project.color }}>
+                            <div className="col-span-4 flex items-center gap-2 min-w-0">
+                              <button onClick={(e) => { e.stopPropagation(); toggleItem(project.id); }} className="p-1 hover:bg-gray-100 rounded flex-shrink-0">
+                                {expandedItems.has(project.id) ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
                               </button>
-                              <FolderKanban className="w-4 h-4" style={{ color: project.color }} />
-                              <span onClick={() => onProjectClick(project)} className="text-sm text-gray-900 hover:text-blue-600 cursor-pointer truncate">
-                                {project.isKeyInitiative && <span className="mr-1"></span>}
-                                {project.name}
-                              </span>
+                              <div className="min-w-0 flex-1">
+                                <span onClick={() => onProjectClick(project)} className="text-sm font-medium text-gray-900 hover:text-blue-600 cursor-pointer truncate block">
+                                  {project.isKeyInitiative && <span className="mr-1">⭐</span>}
+                                  {project.name}
+                                </span>
+                                <span className="text-xs text-gray-500">{project.department}</span>
+                              </div>
                             </div>
                             <div className="col-span-2">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs ${projectStatusConfig[projectStatus].color}`}>
+                              <span 
+                                style={{ backgroundColor: projectStatusConfig[projectStatus].bgColor, color: projectStatusConfig[projectStatus].textColor }}
+                                className="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium whitespace-nowrap"
+                              >
                                 {projectStatusConfig[projectStatus].label}
                               </span>
                             </div>
-                            <div className="col-span-2 text-xs text-gray-600 truncate">{project.owner}</div>
-                            <div className="col-span-2 text-xs text-gray-600">
+                            <div className="col-span-2 text-sm text-gray-700 truncate">{project.owner}</div>
+                            <div className="col-span-2 text-sm text-gray-600 whitespace-nowrap">
                               {project.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                             </div>
-                            <div className="col-span-1 flex items-center gap-2">
-                              <div className="flex-1">
-                                <div className="w-full h-1.5 bg-gray-200 rounded-full">
+                            <div className="col-span-2">
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 h-2 bg-gray-200 rounded-full">
                                   <div className="h-full rounded-full" style={{ width: `${progress}%`, backgroundColor: projectStatus === 'at-risk' ? '#EF4444' : projectStatus === 'needs-attention' ? '#F59E0B' : '#10B981' }} />
                                 </div>
-                                <div className="text-[10px] text-gray-500 mt-1 text-right">{progress}%</div>
-                                <div className="text-[10px] text-gray-400 text-right">{completedCount}/{projectTasks.length}</div>
+                                <span className="text-xs text-gray-600 whitespace-nowrap">{progress}%</span>
                               </div>
-                              {onAddTask && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onAddTask(project.id);
-                                  }}
-                                  className="btn-teal inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium shadow-sm"
-                                  title="Add task"
-                                >
-                                  <Plus className="w-3 h-3" />
-                                  Add Task
-                                </button>
-                              )}
+                              <div className="text-xs text-gray-400 text-right mt-0.5">{completedCount}/{projectTasks.length}</div>
                             </div>
                           </div>
 
-                          {expandedProjects.has(project.id) && (
+                          {expandedItems.has(project.id) && (
                             <div className="bg-gray-50/50">
-                              {filteredProjectTasks.length === 0 ? (
-                                <div className="pl-16 pr-4 py-2 text-xs text-gray-500 italic">No tasks</div>
-                              ) : (
-                                sortTasks(filteredProjectTasks).map(task => {
+                              {(() => {
+                                const parentTasks = sortTasks(filteredProjectTasks.filter(task => !task.parentTaskId));
+                                const childTasks = filteredProjectTasks.filter(task => task.parentTaskId);
+                                const childByParent = childTasks.reduce((acc, task) => {
+                                  const key = task.parentTaskId as string;
+                                  if (!acc[key]) acc[key] = [];
+                                  acc[key].push(task);
+                                  return acc;
+                                }, {} as Record<string, Task[]>);
+
+                                return parentTasks.map(task => {
+                                  const children = sortTasks(childByParent[task.id] || []);
                                   const isOverdue = task.dueDate < now && task.status !== 'done';
-                                  const taskConfig = taskStatusConfig[task.status];
+                                  const hasChildren = children.length > 0;
+                                  const isTaskExpanded = expandedTasks.has(task.id);
+
                                   return (
-                                    <div key={task.id} onClick={() => onTaskClick(task)} className="grid grid-cols-12 gap-3 pl-14 pr-4 py-1.5 hover:bg-blue-50 cursor-pointer items-center">
-                                      <div className="col-span-5 flex items-center gap-2 min-w-0">
-                                        {task.status === 'done' ? <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> : <CheckSquare className="w-3.5 h-3.5 text-gray-400" />}
-                                        <span className={`text-sm truncate ${task.status === 'done' ? 'line-through text-gray-500' : 'text-gray-800'}`}>{task.title}</span>
-                                        {task.priority === 'high' && <AlertCircle className="w-3.5 h-3.5 text-red-500" />}
-                                      </div>
-                                      <div className="col-span-2">
-                                        <span className={`px-1.5 py-0.5 rounded text-xs ${taskConfig.color}`}>{taskConfig.label}</span>
-                                      </div>
-                                      <div className="col-span-2 flex items-center gap-2 text-xs text-gray-600 min-w-0">
-                                        <div className="w-4 h-4 rounded-full flex items-center justify-center text-white text-[10px]" style={{ backgroundColor: '#0d3b66' }}>
-                                          {task.assignee.split(' ').map(n => n[0]).join('')}
+                                    <div key={task.id}>
+                                      <div className="grid grid-cols-12 gap-2 px-4 py-2.5 hover:bg-blue-50 items-center border-b border-gray-50" onDoubleClick={() => onTaskClick(task)}>
+                                        <div className="col-span-4 flex items-center gap-2 min-w-0 pl-8">
+                                          {hasChildren ? (
+                                            <button onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }} className="p-1 hover:bg-gray-100 rounded -ml-1 flex-shrink-0">
+                                              {isTaskExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+                                            </button>
+                                          ) : (
+                                            <span className="w-6 flex-shrink-0" />
+                                          )}
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (onUpdateTask) {
+                                                onUpdateTask(task.id, { status: task.status === 'done' ? 'todo' : 'done' });
+                                              }
+                                            }}
+                                            className="flex-shrink-0"
+                                          >
+                                            {task.status === 'done' ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <CheckSquare className="w-4 h-4 text-gray-400 hover:text-green-500" />}
+                                          </button>
+                                          {onUpdateTask ? (
+                                            <InlineEditText
+                                              value={task.title}
+                                              onSave={(newTitle) => onUpdateTask(task.id, { title: newTitle })}
+                                              className={`text-sm truncate ${task.status === 'done' ? 'line-through text-gray-400' : 'text-gray-700'}`}
+                                              placeholder="Task title"
+                                            />
+                                          ) : (
+                                            <span className={`text-sm truncate ${task.status === 'done' ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                                              {task.title}
+                                            </span>
+                                          )}
+                                          {task.priority === 'high' && <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />}
+                                          {hasChildren && <span className="text-xs text-gray-400 ml-1 flex-shrink-0">({children.length})</span>}
                                         </div>
-                                        <span className="truncate">{task.assignee}</span>
+                                        <div className="col-span-2" onClick={(e) => e.stopPropagation()}>
+                                          {onUpdateTask ? (
+                                            <StatusCell
+                                              value={task.status}
+                                              type="task"
+                                              onChange={(newStatus) => onUpdateTask(task.id, { status: newStatus as TaskStatus })}
+                                              size="sm"
+                                            />
+                                          ) : (
+                                            <span 
+                                              style={{ backgroundColor: taskStatusConfig[task.status].bgColor, color: taskStatusConfig[task.status].textColor }}
+                                              className="px-2 py-1 rounded text-xs font-medium"
+                                            >
+                                              {taskStatusConfig[task.status].label}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="col-span-2" onClick={(e) => e.stopPropagation()}>
+                                          {onUpdateTask ? (
+                                            <OwnerCell
+                                              value={task.assignee}
+                                              onChange={(newAssignee) => onUpdateTask(task.id, { assignee: newAssignee })}
+                                              suggestions={allAssignees}
+                                            />
+                                          ) : (
+                                            <span className="text-sm text-gray-600">{task.assignee}</span>
+                                          )}
+                                        </div>
+                                        <div className="col-span-2" onClick={(e) => e.stopPropagation()}>
+                                          {onUpdateTask ? (
+                                            <DateCell
+                                              value={task.dueDate}
+                                              onChange={(newDate) => onUpdateTask(task.id, { dueDate: newDate })}
+                                            />
+                                          ) : (
+                                            <span className={`text-sm ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+                                              {task.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="col-span-2 text-sm text-gray-500">
+                                          {task.status === 'done' ? '100%' : '0%'}
+                                        </div>
                                       </div>
-                                      <div className={`col-span-2 text-xs ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-                                        {task.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                      </div>
-                                      <div className="col-span-1 text-xs text-right text-gray-500">
-                                        {task.status === 'done' ? '100%' : '0%'}
-                                      </div>
+
+                                      {isTaskExpanded && children.map((child) => {
+                                        const isChildOverdue = child.dueDate < now && child.status !== 'done';
+                                        return (
+                                          <div key={child.id} className="grid grid-cols-12 gap-2 px-4 py-2 hover:bg-blue-50 items-center bg-gray-50/50 border-b border-gray-50">
+                                            <div className="col-span-4 flex items-center gap-2 min-w-0 pl-16">
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  if (onUpdateTask) {
+                                                    onUpdateTask(child.id, { status: child.status === 'done' ? 'todo' : 'done' });
+                                                  }
+                                                }}
+                                                className="flex-shrink-0"
+                                              >
+                                                {child.status === 'done' ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <CheckSquare className="w-4 h-4 text-gray-400 hover:text-green-500" />}
+                                              </button>
+                                              {onUpdateTask ? (
+                                                <InlineEditText
+                                                  value={child.title}
+                                                  onSave={(newTitle) => onUpdateTask(child.id, { title: newTitle })}
+                                                  className={`text-sm truncate ${child.status === 'done' ? 'line-through text-gray-400' : 'text-gray-600'}`}
+                                                  placeholder="Subtask title"
+                                                />
+                                              ) : (
+                                                <span className={`text-sm truncate ${child.status === 'done' ? 'line-through text-gray-400' : 'text-gray-600'}`}>
+                                                  {child.title}
+                                                </span>
+                                              )}
+                                            </div>
+                                            <div className="col-span-2" onClick={(e) => e.stopPropagation()}>
+                                              {onUpdateTask ? (
+                                                <StatusCell
+                                                  value={child.status}
+                                                  type="task"
+                                                  onChange={(newStatus) => onUpdateTask(child.id, { status: newStatus as TaskStatus })}
+                                                  size="sm"
+                                                />
+                                              ) : (
+                                                <span 
+                                                  style={{ backgroundColor: taskStatusConfig[child.status].bgColor, color: taskStatusConfig[child.status].textColor }}
+                                                  className="px-2 py-1 rounded text-xs font-medium"
+                                                >
+                                                  {taskStatusConfig[child.status].label}
+                                                </span>
+                                              )}
+                                            </div>
+                                            <div className="col-span-2" onClick={(e) => e.stopPropagation()}>
+                                              {onUpdateTask ? (
+                                                <OwnerCell
+                                                  value={child.assignee}
+                                                  onChange={(newAssignee) => onUpdateTask(child.id, { assignee: newAssignee })}
+                                                  suggestions={allAssignees}
+                                                />
+                                              ) : (
+                                                <span className="text-sm text-gray-600">{child.assignee}</span>
+                                              )}
+                                            </div>
+                                            <div className="col-span-2" onClick={(e) => e.stopPropagation()}>
+                                              {onUpdateTask ? (
+                                                <DateCell
+                                                  value={child.dueDate}
+                                                  onChange={(newDate) => onUpdateTask(child.id, { dueDate: newDate })}
+                                                />
+                                              ) : (
+                                                <span className={`text-sm ${isChildOverdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+                                                  {child.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                                </span>
+                                              )}
+                                            </div>
+                                            <div className="col-span-2 text-sm text-gray-400">-</div>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   );
-                                })
+                                });
+                              })()}
+                              {filteredProjectTasks.length === 0 && (
+                                <div className="px-3 py-2 text-xs text-gray-500 italic">No tasks</div>
                               )}
                             </div>
                           )}
                         </div>
                       );
                     })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
         </div>
       </div>
     </div>

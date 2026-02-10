@@ -1,6 +1,7 @@
-import { ArrowLeft, Building2, TrendingUp, AlertTriangle, CheckCircle, LayoutGrid, List, GanttChartSquare, Plus, Search, Calendar, User, Clock, FolderKanban } from 'lucide-react';
+import { ArrowLeft, Building2, TrendingUp, AlertTriangle, CheckCircle, CheckSquare, LayoutGrid, List, GanttChartSquare, Plus, Search, Calendar, User, Clock, FolderKanban, ChevronRight, ChevronDown, Star } from 'lucide-react';
 import { useState } from 'react';
-import { Project, Task, Department, calculateProgress, deriveStatus } from '../types';
+import { Project, Task, Department, TaskStatus, calculateProgress, deriveStatus } from '../types';
+import { StatusCell, OwnerCell, DateCell } from './StatusCells';
 
 interface DepartmentsViewProps {
   projects: Project[];
@@ -10,6 +11,7 @@ interface DepartmentsViewProps {
   onBackToOverview: () => void;
   onDepartmentSelect: (dept: Department) => void;
   onAddInitiative?: (department: Department) => void;
+  onUpdateTask?: (taskId: string, updates: Partial<Task>) => void;
 }
 
 const departments: Department[] = ['Professional Services', 'Sales', 'Marketing', 'CE&S', 'Finance', 'Product', 'IT-Cybersecurity', 'Other Exec'];
@@ -20,10 +22,21 @@ const statusConfig = {
   'on-track': { label: 'On Track', color: 'text-green-600', bg: 'bg-green-50', dot: 'bg-green-600' },
 };
 
-export function DepartmentsView({ projects, tasks, onProjectClick, selectedDepartment, onBackToOverview, onDepartmentSelect, onAddInitiative }: DepartmentsViewProps) {
+export function DepartmentsView({ projects, tasks, onProjectClick, selectedDepartment, onBackToOverview, onDepartmentSelect, onAddInitiative, onUpdateTask }: DepartmentsViewProps) {
   const [viewMode, setViewMode] = useState<'dashboard' | 'list' | 'kanban' | 'gantt'>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+
+  const toggleProject = (projectId: string) => {
+    const next = new Set(expandedProjects);
+    if (next.has(projectId)) {
+      next.delete(projectId);
+    } else {
+      next.add(projectId);
+    }
+    setExpandedProjects(next);
+  };
 
   const getProjectProgress = (projectId: string) => {
     const projectTasks = tasks.filter(t => t.projectId === projectId);
@@ -81,7 +94,7 @@ export function DepartmentsView({ projects, tasks, onProjectClick, selectedDepar
 
     return (
       <div className="flex-1 bg-gray-50 overflow-auto">
-        <div className="p-8">
+        <div className="p-6">
           {/* Back Button */}
           <button
             onClick={onBackToOverview}
@@ -91,15 +104,15 @@ export function DepartmentsView({ projects, tasks, onProjectClick, selectedDepar
             <span className="text-sm">Back to Departments</span>
           </button>
 
-          <div className="mb-8 flex items-center justify-between">
+          <div className="mb-6 flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-semibold text-gray-900 mb-1">{selectedDepartment}</h1>
+              <h1 className="text-xl font-semibold text-gray-900 mb-1">{selectedDepartment}</h1>
               <p className="text-sm text-gray-600">Department dashboard and initiative overview</p>
             </div>
             <button
               onClick={() => onAddInitiative?.(selectedDepartment)}
               disabled={!onAddInitiative}
-              className="btn-teal flex items-center gap-2 px-4 py-2 rounded-lg transition-colors shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+              className="btn-teal flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <Plus className="w-4 h-4" />
               Add Initiative
@@ -107,7 +120,7 @@ export function DepartmentsView({ projects, tasks, onProjectClick, selectedDepar
           </div>
 
           {/* View Toggle */}
-          <div className="flex bg-gray-100 rounded-lg p-1 mb-8 w-fit">
+          <div className="flex bg-gray-100 rounded-md p-1 mb-6 w-fit">
             <button
               onClick={() => setViewMode('dashboard')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition-colors ${
@@ -245,7 +258,7 @@ export function DepartmentsView({ projects, tasks, onProjectClick, selectedDepar
                           <div className="flex items-start justify-between mb-2">
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
-                                {project.isKeyInitiative && <span>⭐</span>}
+                                {project.isKeyInitiative && <Star className="w-4 h-4 text-amber-500" />}
                                 <h3 className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
                                   {project.name}
                                 </h3>
@@ -331,9 +344,9 @@ export function DepartmentsView({ projects, tasks, onProjectClick, selectedDepar
             </>
           ) : viewMode === 'list' ? (
             /* List View */
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
               {/* Table Header */}
-              <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-700 uppercase tracking-wider">
+              <div className="grid grid-cols-12 gap-3 px-4 py-2.5 bg-gray-50 border-b border-gray-200 text-[11px] font-medium text-gray-700 uppercase tracking-wider">
                 <div className="col-span-4">Initiative Name</div>
                 <div className="col-span-2">Status</div>
                 <div className="col-span-2">Owner</div>
@@ -352,62 +365,190 @@ export function DepartmentsView({ projects, tasks, onProjectClick, selectedDepar
                     const status = getProjectStatus(project.id);
                     const progress = getProjectProgress(project.id);
                     const config = statusConfig[status];
+                    const projectTasks = tasks.filter(t => t.projectId === project.id);
+                    const isExpanded = expandedProjects.has(project.id);
 
                     return (
-                      <div
-                        key={project.id}
-                        onClick={() => onProjectClick(project)}
-                        className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-gray-50 cursor-pointer transition-colors"
-                      >
-                        <div className="col-span-4">
-                          <div className="flex items-center gap-2">
-                            {project.isKeyInitiative && <span>⭐</span>}
-                            <div>
-                              <div className="font-medium text-gray-900">{project.name}</div>
-                              <div className="text-sm text-gray-600 line-clamp-1">{project.description}</div>
+                      <div key={project.id}>
+                        <div
+                          onClick={() => onProjectClick(project)}
+                          onDoubleClick={() => toggleProject(project.id)}
+                          className="grid grid-cols-12 gap-3 px-4 py-2.5 items-center hover:bg-gray-50 cursor-pointer transition-colors"
+                        >
+                          <div className="col-span-4">
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleProject(project.id);
+                                }}
+                                className="text-gray-400 hover:text-gray-600"
+                              >
+                                {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                              </button>
+                              {project.isKeyInitiative && <Star className="w-4 h-4 text-amber-500" />}
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">{project.name}</div>
+                                <div className="text-xs text-gray-600 line-clamp-1">{project.description}</div>
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="col-span-2">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${config.color} ${config.bg}`}>
-                            <div className={`w-1.5 h-1.5 rounded-full ${config.dot}`}></div>
-                            {config.label}
-                          </span>
-                        </div>
-
-                        <div className="col-span-2">
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-medium text-blue-700">
-                              {project.owner.split(' ').map(n => n[0]).join('')}
-                            </div>
-                            <span className="text-sm text-gray-900">{project.owner}</span>
-                          </div>
-                        </div>
-
-                        <div className="col-span-2">
-                          <div className="flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                            <span className="text-sm text-gray-900">
-                              {project.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          <div className="col-span-2">
+                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium ${config.color} ${config.bg}`}>
+                              <div className={`w-1.5 h-1.5 rounded-full ${config.dot}`}></div>
+                              {config.label}
                             </span>
                           </div>
-                        </div>
 
-                        <div className="col-span-2">
-                          <div className="flex items-center gap-3">
-                            <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                              <div
-                                className="h-full"
-                                style={{
-                                  width: `${progress}%`,
-                                  backgroundColor: status === 'at-risk' ? '#EF4444' : status === 'needs-attention' ? '#F59E0B' : '#10B981',
-                                }}
-                              />
+                          <div className="col-span-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-[11px] font-medium text-blue-700">
+                                {project.owner.split(' ').map(n => n[0]).join('')}
+                              </div>
+                              <span className="text-xs text-gray-900">{project.owner}</span>
                             </div>
-                            <span className="text-sm font-medium text-gray-900 min-w-[3rem]">{progress}%</span>
+                          </div>
+
+                          <div className="col-span-2">
+                            <div className="flex items-center gap-1.5">
+                              <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                              <span className="text-xs text-gray-900">
+                                {project.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="col-span-2">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full"
+                                  style={{
+                                    width: `${progress}%`,
+                                    backgroundColor: status === 'at-risk' ? '#EF4444' : status === 'needs-attention' ? '#F59E0B' : '#10B981',
+                                  }}
+                                />
+                              </div>
+                              <span className="text-xs font-medium text-gray-900 min-w-[2.5rem]">{progress}%</span>
+                            </div>
                           </div>
                         </div>
+
+                        {isExpanded && (
+                          <div className="bg-gray-50/40 border-t border-gray-100">
+                            {projectTasks.length === 0 ? (
+                              <div className="px-6 py-2 text-xs text-gray-500">No tasks</div>
+                            ) : (
+                              (() => {
+                                const parentTasks = projectTasks.filter(t => !t.parentTaskId);
+                                const childTasks = projectTasks.filter(t => t.parentTaskId);
+                                const childByParent = childTasks.reduce((acc, task) => {
+                                  const key = task.parentTaskId as string;
+                                  if (!acc[key]) acc[key] = [];
+                                  acc[key].push(task);
+                                  return acc;
+                                }, {} as Record<string, Task[]>);
+
+                                return parentTasks.map(task => {
+                                  const children = childByParent[task.id] || [];
+                                  return (
+                                    <div key={task.id}>
+                                      {/* Parent Task Row */}
+                                      <div className="grid grid-cols-12 gap-3 px-6 py-2 items-center border-b border-gray-100">
+                                        <div className="col-span-4 flex items-center gap-2">
+                                          <CheckSquare className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                          <span className="text-xs text-gray-700 truncate">{task.title}</span>
+                                          {children.length > 0 && (
+                                            <span className="text-[10px] text-gray-400">({children.length} subtasks)</span>
+                                          )}
+                                        </div>
+                                        <div className="col-span-2">
+                                          {onUpdateTask ? (
+                                            <StatusCell
+                                              value={task.status}
+                                              type="task"
+                                              onChange={(newStatus) => onUpdateTask(task.id, { status: newStatus as TaskStatus })}
+                                              size="sm"
+                                            />
+                                          ) : (
+                                            <span className="text-xs text-gray-500">{task.status}</span>
+                                          )}
+                                        </div>
+                                        <div className="col-span-2">
+                                          {onUpdateTask ? (
+                                            <OwnerCell
+                                              value={task.assignee}
+                                              onChange={(newAssignee) => onUpdateTask(task.id, { assignee: newAssignee })}
+                                            />
+                                          ) : (
+                                            <span className="text-xs text-gray-600 truncate">{task.assignee}</span>
+                                          )}
+                                        </div>
+                                        <div className="col-span-2">
+                                          {onUpdateTask ? (
+                                            <DateCell
+                                              value={task.dueDate}
+                                              onChange={(newDate) => onUpdateTask(task.id, { dueDate: newDate })}
+                                            />
+                                          ) : (
+                                            <span className="text-xs text-gray-500">{task.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                                          )}
+                                        </div>
+                                        <div className="col-span-2 text-xs text-gray-500">
+                                          {task.status === 'done' ? '100%' : '0%'}
+                                        </div>
+                                      </div>
+                                      {/* Subtask Rows */}
+                                      {children.map(child => (
+                                        <div key={child.id} className="grid grid-cols-12 gap-3 px-6 py-1.5 items-center border-b border-gray-100 bg-gray-50/30">
+                                          <div className="col-span-4 flex items-center gap-2 pl-6">
+                                            <span className="text-[10px] text-gray-400">↳</span>
+                                            <span className="text-xs text-gray-600 truncate">{child.title}</span>
+                                          </div>
+                                          <div className="col-span-2">
+                                            {onUpdateTask ? (
+                                              <StatusCell
+                                                value={child.status}
+                                                type="task"
+                                                onChange={(newStatus) => onUpdateTask(child.id, { status: newStatus as TaskStatus })}
+                                                size="sm"
+                                              />
+                                            ) : (
+                                              <span className="text-xs text-gray-500">{child.status}</span>
+                                            )}
+                                          </div>
+                                          <div className="col-span-2">
+                                            {onUpdateTask ? (
+                                              <OwnerCell
+                                                value={child.assignee}
+                                                onChange={(newAssignee) => onUpdateTask(child.id, { assignee: newAssignee })}
+                                              />
+                                            ) : (
+                                              <span className="text-xs text-gray-600 truncate">{child.assignee}</span>
+                                            )}
+                                          </div>
+                                          <div className="col-span-2">
+                                            {onUpdateTask ? (
+                                              <DateCell
+                                                value={child.dueDate}
+                                                onChange={(newDate) => onUpdateTask(child.id, { dueDate: newDate })}
+                                              />
+                                            ) : (
+                                              <span className="text-xs text-gray-500">{child.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                                            )}
+                                          </div>
+                                          <div className="col-span-2 text-xs text-gray-400">-</div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                });
+                              })()
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })
@@ -437,7 +578,7 @@ export function DepartmentsView({ projects, tasks, onProjectClick, selectedDepar
                           className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md cursor-pointer transition-shadow"
                         >
                           <div className="flex items-start justify-between mb-2">
-                            {project.isKeyInitiative && <span className="text-lg">⭐</span>}
+                            {project.isKeyInitiative && <Star className="w-4 h-4 text-amber-500" />}
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${config.color} ${config.bg} ml-auto`}>
                               <div className={`w-1.5 h-1.5 rounded-full ${config.dot}`}></div>
                               {config.label}
@@ -481,7 +622,7 @@ export function DepartmentsView({ projects, tasks, onProjectClick, selectedDepar
                           className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md cursor-pointer transition-shadow"
                         >
                           <div className="flex items-start justify-between mb-2">
-                            {project.isKeyInitiative && <span className="text-lg">⭐</span>}
+                            {project.isKeyInitiative && <Star className="w-4 h-4 text-amber-500" />}
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${config.color} ${config.bg} ml-auto`}>
                               <div className={`w-1.5 h-1.5 rounded-full ${config.dot}`}></div>
                               {config.label}

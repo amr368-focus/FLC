@@ -1,6 +1,8 @@
-import { ArrowLeft, Plus, MessageSquare, Calendar, User, AlertCircle, LayoutGrid, List, GanttChartSquare, Edit2 } from 'lucide-react';
+import { ArrowLeft, Plus, MessageSquare, Calendar, User, AlertCircle, LayoutGrid, List, GanttChartSquare, Edit2, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Project, Task, calculateProgress, deriveStatus, TaskStatus } from '../types';
+import { StatusCell, OwnerCell, DateCell } from './StatusCells';
+import { InlineEditText } from './InlineEdit';
 import { GanttView } from './GanttView';
 interface InitiativeDetailViewProps {
   project: Project;
@@ -10,22 +12,24 @@ interface InitiativeDetailViewProps {
   onAddTask: () => void;
   onUpdateTask: (taskId: string, updates: Partial<Task>) => void;
   onEditInitiative?: (project: Project) => void;
+  onDeleteInitiative?: (projectId: string) => void;
 }
 const statusConfig = {
-  'at-risk': { label: 'At Risk', color: 'text-red-600', bg: 'bg-red-50', dot: 'bg-red-600' },
-  'needs-attention': { label: 'Needs Attention', color: 'text-orange-600', bg: 'bg-orange-50', dot: 'bg-orange-500' },
-  'on-track': { label: 'On Track', color: 'text-green-600', bg: 'bg-green-50', dot: 'bg-green-600' },
+  'at-risk': { label: 'At Risk', textColor: '#dc2626', bgColor: '#fef2f2', dotColor: '#dc2626' },
+  'needs-attention': { label: 'Needs Attention', textColor: '#ea580c', bgColor: '#fff7ed', dotColor: '#f97316' },
+  'on-track': { label: 'On Track', textColor: '#16a34a', bgColor: '#f0fdf4', dotColor: '#16a34a' },
 };
 const taskStatusConfig = {
-  'todo': { label: 'To Do', color: 'bg-blue-100 text-blue-700' },
-  'in-progress': { label: 'In Progress', color: 'bg-purple-100 text-purple-700' },
-  'done': { label: 'Done', color: 'bg-green-100 text-green-700' },
+  'todo': { label: 'To Do', bgColor: '#64748b', textColor: '#ffffff' },
+  'in-progress': { label: 'In Progress', bgColor: '#2563eb', textColor: '#ffffff' },
+  'done': { label: 'Done', bgColor: '#059669', textColor: '#ffffff' },
 };
-export function InitiativeDetailView({ project, tasks, onBack, onEditTask, onAddTask, onUpdateTask, onEditInitiative }: InitiativeDetailViewProps) {
+export function InitiativeDetailView({ project, tasks, onBack, onEditTask, onAddTask, onUpdateTask, onEditInitiative, onDeleteInitiative }: InitiativeDetailViewProps) {
   const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'gantt'>('list');
   const [sortField, setSortField] = useState<'title' | 'status' | 'assignee' | 'dueDate'>('dueDate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [filterStatus, setFilterStatus] = useState<'all' | 'todo' | 'in-progress' | 'done'>('all');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const progress = calculateProgress(tasks);
   const derivedStatus = deriveStatus(tasks);
   const config = statusConfig[derivedStatus];
@@ -90,8 +94,11 @@ export function InitiativeDetailView({ project, tasks, onBack, onEditTask, onAdd
               <div className="flex items-center gap-3 mb-2">
                 {project.isKeyInitiative && <span className="text-xl">⭐</span>}
                 <h1 className="text-2xl font-semibold text-gray-900">{project.name}</h1>
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${config.color} ${config.bg}`}>
-                  <div className={`w-2 h-2 rounded-full ${config.dot}`}></div>
+                <span 
+                  style={{ backgroundColor: config.bgColor, color: config.textColor }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium"
+                >
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: config.dotColor }}></div>
                   {config.label}
                 </span>
               </div>
@@ -111,11 +118,49 @@ export function InitiativeDetailView({ project, tasks, onBack, onEditTask, onAdd
                   className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                 >
                   <Edit2 className="w-4 h-4" />
-                  Edit Initiative
+                  Edit
+                </button>
+              )}
+              {onDeleteInitiative && (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
                 </button>
               )}
             </div>
           </div>
+
+          {/* Delete Confirmation Dialog */}
+          {showDeleteConfirm && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg p-6 max-w-md mx-4 shadow-xl">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Initiative?</h3>
+                <p className="text-gray-600 mb-4">
+                  Are you sure you want to delete "<strong>{project.name}</strong>"? This will also delete all {tasks.length} associated tasks. This action cannot be undone.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      onDeleteInitiative(project.id);
+                      setShowDeleteConfirm(false);
+                    }}
+                    className="px-4 py-2 text-sm bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors"
+                  >
+                    Delete Initiative
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-4 gap-6 pt-4 border-t border-gray-200">
             <div>
               <div className="text-sm text-gray-600 mb-1">Owner</div>
@@ -242,86 +287,142 @@ export function InitiativeDetailView({ project, tasks, onBack, onEditTask, onAdd
                     No tasks yet. Click "Add Task" to get started.
                   </div>
                 ) : (
-                  sortedTasks.map((task, index) => {
-                    const isOverdue = task.dueDate < now && task.status !== 'done';
-                    const statusStyle = taskStatusConfig[task.status];
-                    
-                    return (
-                      <div
-                        key={task.id}
-                        onClick={() => onEditTask(task)}
-                        className="grid grid-cols-12 gap-4 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors"
-                      >
-                        <div className="col-span-1 flex items-center">
-                          <span className="text-sm text-gray-600 font-mono">{`${project.name.substring(0, 3).toUpperCase()}-${index + 1}`}</span>
-                        </div>
-                        
-                        <div className="col-span-2 flex items-center">
-                          <span className={`text-sm ${task.status === 'done' ? 'line-through text-gray-500' : 'text-gray-900'} truncate`}>
-                            {task.title}
-                          </span>
-                        </div>
-                        
-                        <div className="col-span-1 flex items-center">
-                          <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${statusStyle.color}`}>
-                            {statusStyle.label.substring(0, 8)}
-                          </span>
-                        </div>
-                        
-                        <div className="col-span-1 flex items-center">
-                          {task.dependencies && task.dependencies.length > 0 && (
-                            <span className="text-xs text-orange-600 font-medium">
-                              {task.dependencies.length}
-                            </span>
-                          )}
-                        </div>
-                        
-                        <div className="col-span-1 flex items-center">
-                          {task.tags && task.tags.length > 0 && (
-                            <span className="text-xs text-blue-600">
-                              {task.tags.length} tag{task.tags.length > 1 ? 's' : ''}
-                            </span>
-                          )}
-                        </div>
-                        
-                        <div className="col-span-1 flex items-center">
-                          {task.description && (
-                            <span className="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs truncate">
-                              {task.description.substring(0, 10)}
-                            </span>
-                          )}
-                        </div>
-                        
-                        <div className="col-span-2 flex items-center">
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-medium">
-                              {task.assignee.split(' ').map(n => n[0]).join('')}
+                  (() => {
+                    const parentTasks = sortedTasks.filter(task => !task.parentTaskId);
+                    const childTasks = sortedTasks.filter(task => task.parentTaskId);
+                    const childByParent = childTasks.reduce((acc, task) => {
+                      const key = task.parentTaskId as string;
+                      if (!acc[key]) acc[key] = [];
+                      acc[key].push(task);
+                      return acc;
+                    }, {} as Record<string, Task[]>);
+
+                    return parentTasks.map((task, index) => {
+                      const isOverdue = task.dueDate < now && task.status !== 'done';
+                      const children = childByParent[task.id] || [];
+
+                      return (
+                        <div key={task.id}>
+                          <div
+                            onDoubleClick={() => onEditTask(task)}
+                            className="grid grid-cols-12 gap-4 px-4 py-3 hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="col-span-1 flex items-center">
+                              <span className="text-sm text-gray-600 font-mono">{`${project.name.substring(0, 3).toUpperCase()}-${index + 1}`}</span>
                             </div>
-                            <span className="text-sm text-gray-900 truncate">{task.assignee}</span>
+
+                            <div className="col-span-2 flex items-center">
+                              <InlineEditText
+                                value={task.title}
+                                onSave={(newTitle) => onUpdateTask(task.id, { title: newTitle })}
+                                className={`text-sm truncate ${task.status === 'done' ? 'line-through text-gray-500' : 'text-gray-900'}`}
+                                placeholder="Task title"
+                              />
+                            </div>
+
+                            <div className="col-span-1 flex items-center">
+                              <StatusCell
+                                value={task.status}
+                                type="task"
+                                onChange={(newStatus) => onUpdateTask(task.id, { status: newStatus as TaskStatus })}
+                                size="sm"
+                              />
+                            </div>
+
+                            <div className="col-span-1 flex items-center">
+                              {task.dependencies && task.dependencies.length > 0 && (
+                                <span className="text-xs text-orange-600 font-medium">
+                                  {task.dependencies.length}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="col-span-1 flex items-center">
+                              {task.tags && task.tags.length > 0 && (
+                                <span className="text-xs text-blue-600">
+                                  {task.tags.length} tag{task.tags.length > 1 ? 's' : ''}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="col-span-1 flex items-center">
+                              {task.description && (
+                                <span className="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs truncate">
+                                  {task.description.substring(0, 10)}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="col-span-2 flex items-center">
+                              <OwnerCell
+                                value={task.assignee}
+                                onChange={(newAssignee) => onUpdateTask(task.id, { assignee: newAssignee })}
+                              />
+                            </div>
+
+                            <div className="col-span-2 flex items-center">
+                              <div className="flex items-center gap-1.5">
+                                <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                                <DateCell
+                                  value={task.dueDate}
+                                  onChange={(newDate) => onUpdateTask(task.id, { dueDate: newDate })}
+                                />
+                                {task.priority === 'high' && (
+                                  <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+                                )}
+                                {isOverdue && <span className="text-xs text-red-600 font-medium">Overdue</span>}
+                              </div>
+                            </div>
+
+                            <div className="col-span-1 flex items-center">
+                              <div className="flex items-center gap-1 text-sm text-gray-600">
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                <span>{task.comments.length}</span>
+                              </div>
+                            </div>
                           </div>
+
+                          {children.map((child) => (
+                            <div key={child.id} className="grid grid-cols-12 gap-4 px-4 py-2 bg-gray-50/60 border-t border-gray-100">
+                              <div className="col-span-1 flex items-center text-[11px] text-gray-400">Sub</div>
+                              <div className="col-span-2 flex items-center pl-4">
+                                <InlineEditText
+                                  value={child.title}
+                                  onSave={(newTitle) => onUpdateTask(child.id, { title: newTitle })}
+                                  className={`text-sm truncate ${child.status === 'done' ? 'line-through text-gray-500' : 'text-gray-700'}`}
+                                  placeholder="Subtask title"
+                                />
+                              </div>
+                              <div className="col-span-1 flex items-center">
+                                <StatusCell
+                                  value={child.status}
+                                  type="task"
+                                  onChange={(newStatus) => onUpdateTask(child.id, { status: newStatus as TaskStatus })}
+                                  size="sm"
+                                />
+                              </div>
+                              <div className="col-span-1" />
+                              <div className="col-span-1" />
+                              <div className="col-span-1" />
+                              <div className="col-span-2 flex items-center">
+                                <OwnerCell
+                                  value={child.assignee}
+                                  onChange={(newAssignee) => onUpdateTask(child.id, { assignee: newAssignee })}
+                                />
+                              </div>
+                              <div className="col-span-2 flex items-center">
+                                <DateCell
+                                  value={child.dueDate}
+                                  onChange={(newDate) => onUpdateTask(child.id, { dueDate: newDate })}
+                                />
+                              </div>
+                              <div className="col-span-1" />
+                            </div>
+                          ))}
                         </div>
-                        
-                        <div className="col-span-2 flex items-center">
-                          <div className="flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                            <span className={`text-sm ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
-                              {task.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            </span>
-                            {task.priority === 'high' && (
-                              <AlertCircle className="w-3.5 h-3.5 text-red-600" />
-                            )}
-                          </div>
-                        </div>
-                        
-                        <div className="col-span-1 flex items-center">
-                          <div className="flex items-center gap-1 text-sm text-gray-600">
-                            <MessageSquare className="w-3.5 h-3.5" />
-                            <span>{task.comments.length}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
+                      );
+                    });
+                  })()
                 )}
               </div>
             </>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocalStorage, STORAGE_KEYS } from './hooks/useLocalStorage';
 import { Navigation } from './components/Navigation';
 import { ExecutiveDashboard } from './components/ExecutiveDashboard';
 import { DepartmentsView } from './components/DepartmentsView';
@@ -14,6 +15,8 @@ import { PortfolioTimelineView } from './components/PortfolioTimelineView';
 import { PmoMeetingsView } from './components/PmoMeetingsView';
 import { PmoMeetingDock } from './components/PmoMeetingDock';
 import { HomePageView } from './components/HomePageView';
+import { SettingsPanel } from './components/SettingsPanel';
+import { AuthModal } from './components/AuthModal';
 import { Project, Task, Department, CompanyGoal, KeyResult, PmoMeeting } from './types';
 
 const initialProjects: Project[] = [
@@ -414,12 +417,15 @@ const initialMeetings: PmoMeeting[] = [
   },
 ];
 
+const AUTH_EMAIL_KEY = 'pmo-auth-email';
+
 export default function App() {
   const [view, setView] = useState<'home' | 'dashboard' | 'departments' | 'team' | 'portfolio' | 'goals' | 'workbreakdown' | 'timeline' | 'pmo'>('home');
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const [goals, setGoals] = useState<CompanyGoal[]>(initialGoals);
-  const [meetings, setMeetings] = useState<PmoMeeting[]>(initialMeetings);
+  // Data persisted to localStorage - survives page reloads
+  const [projects, setProjects, resetProjects] = useLocalStorage<Project[]>(STORAGE_KEYS.PROJECTS, initialProjects);
+  const [tasks, setTasks, resetTasks] = useLocalStorage<Task[]>(STORAGE_KEYS.TASKS, initialTasks);
+  const [goals, setGoals, resetGoals] = useLocalStorage<CompanyGoal[]>(STORAGE_KEYS.GOALS, initialGoals);
+  const [meetings, setMeetings, resetMeetings] = useLocalStorage<PmoMeeting[]>(STORAGE_KEYS.MEETINGS, initialMeetings);
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(initialMeetings[0]?.id || null);
   const [isPmoDockOpen, setIsPmoDockOpen] = useState(false);
   const [pmoDockAnchor, setPmoDockAnchor] = useState<'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'>('bottom-right');
@@ -432,6 +438,164 @@ export default function App() {
   const [projectListModal, setProjectListModal] = useState<{ projects: Project[]; title: string } | null>(null);
   const [editingInitiative, setEditingInitiative] = useState<Project | null>(null);
   const [newInitiativeDepartment, setNewInitiativeDepartment] = useState<Department | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [authEmail, setAuthEmail] = useState<string | null>(() => {
+    const stored = localStorage.getItem(AUTH_EMAIL_KEY);
+    if (stored && stored.endsWith('@focuslearning.com')) return stored;
+    return null;
+  });
+
+  const isAuthenticated = Boolean(authEmail);
+
+  const handleAuthenticate = (email: string) => {
+    setAuthEmail(email);
+    localStorage.setItem(AUTH_EMAIL_KEY, email);
+  };
+
+  const handleLogout = () => {
+    setAuthEmail(null);
+    localStorage.removeItem(AUTH_EMAIL_KEY);
+  };
+
+  // Data management functions for settings panel
+  const handleResetData = () => {
+    resetProjects();
+    resetTasks();
+    resetGoals();
+    resetMeetings();
+    // Reload to ensure fresh state
+    window.location.reload();
+  };
+
+  const csvEscape = (value: string | number | boolean | null | undefined) => {
+    if (value === null || value === undefined) return '';
+    const str = String(value);
+    if (/[",\n]/.test(str)) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const toCsv = (headers: string[], rows: Array<Record<string, string | number | boolean | null | undefined>>) => {
+    const headerLine = headers.join(',');
+    const bodyLines = rows.map((row) => headers.map((h) => csvEscape(row[h])).join(','));
+    return [headerLine, ...bodyLines].join('\n');
+  };
+
+  const handleExportCsv = () => {
+    const dateStamp = new Date().toISOString().split('T')[0];
+
+    const projectsCsv = toCsv(
+      ['id', 'name', 'department', 'status', 'progress', 'owner', 'team', 'dueDate', 'createdAt', 'description', 'isKeyInitiative', 'goalId', 'color'],
+      projects.map((p) => ({
+        id: p.id,
+        name: p.name,
+        department: p.department,
+        status: p.status,
+        progress: p.progress,
+        owner: p.owner,
+        team: p.team || '',
+        dueDate: p.dueDate?.toISOString?.() || '',
+        createdAt: p.createdAt?.toISOString?.() || '',
+        description: p.description,
+        isKeyInitiative: p.isKeyInitiative ? 'true' : 'false',
+        goalId: p.goalId || '',
+        color: p.color,
+      }))
+    );
+
+    const tasksCsv = toCsv(
+      ['id', 'projectId', 'parentTaskId', 'title', 'status', 'priority', 'assignee', 'dueDate', 'createdAt', 'description', 'tags', 'dependencies'],
+      tasks.map((t) => ({
+        id: t.id,
+        projectId: t.projectId,
+        parentTaskId: t.parentTaskId || '',
+        title: t.title,
+        status: t.status,
+        priority: t.priority,
+        assignee: t.assignee,
+        dueDate: t.dueDate?.toISOString?.() || '',
+        createdAt: t.createdAt?.toISOString?.() || '',
+        description: t.description,
+        tags: (t.tags || []).join('|'),
+        dependencies: (t.dependencies || []).join('|'),
+      }))
+    );
+
+    const goalsCsv = toCsv(
+      ['id', 'name', 'owner', 'status', 'targetDate', 'createdAt', 'description'],
+      goals.map((g) => ({
+        id: g.id,
+        name: g.name,
+        owner: g.owner,
+        status: g.status,
+        targetDate: g.targetDate?.toISOString?.() || '',
+        createdAt: g.createdAt?.toISOString?.() || '',
+        description: g.description,
+      }))
+    );
+
+    const meetingsCsv = toCsv(
+      ['id', 'department', 'date', 'attendees', 'teamStatus', 'itemsRequiringAttention', 'tasksComingDue', 'meetingNotes', 'decisionsMade', 'actionItemsAssigned', 'parkingLot', 'createdAt'],
+      meetings.map((m) => ({
+        id: m.id,
+        department: m.department,
+        date: m.date?.toISOString?.() || '',
+        attendees: m.attendees,
+        teamStatus: m.teamStatus,
+        itemsRequiringAttention: m.itemsRequiringAttention,
+        tasksComingDue: m.tasksComingDue,
+        meetingNotes: m.meetingNotes,
+        decisionsMade: m.decisionsMade,
+        actionItemsAssigned: m.actionItemsAssigned,
+        parkingLot: m.parkingLot,
+        createdAt: m.createdAt?.toISOString?.() || '',
+      }))
+    );
+
+    return [
+      { filename: `pmo-projects-${dateStamp}.csv`, data: projectsCsv },
+      { filename: `pmo-tasks-${dateStamp}.csv`, data: tasksCsv },
+      { filename: `pmo-goals-${dateStamp}.csv`, data: goalsCsv },
+      { filename: `pmo-meetings-${dateStamp}.csv`, data: meetingsCsv },
+    ];
+  };
+
+  const handleImportData = (data: string): boolean => {
+    try {
+      const parsed = JSON.parse(data);
+      if (parsed.projects && parsed.tasks && parsed.goals && parsed.meetings) {
+        // Convert date strings back to Date objects
+        const reviveDate = (obj: any) => {
+          for (const key in obj) {
+            if (typeof obj[key] === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(obj[key])) {
+              obj[key] = new Date(obj[key]);
+            } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+              reviveDate(obj[key]);
+            }
+          }
+          return obj;
+        };
+        setProjects(reviveDate(parsed.projects));
+        setTasks(reviveDate(parsed.tasks));
+        setGoals(reviveDate(parsed.goals));
+        setMeetings(reviveDate(parsed.meetings));
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleExportJson = (): string => {
+    return JSON.stringify({
+      projects,
+      tasks,
+      goals,
+      meetings,
+    }, null, 2);
+  };
 
   const handleProjectClick = (project: Project) => {
     setSelectedProject(project);
@@ -679,6 +843,7 @@ export default function App() {
         currentView={view}
         onViewChange={handleNavigationChange}
         onDepartmentSelect={handleDepartmentSelect}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -691,6 +856,7 @@ export default function App() {
             onAddTask={() => handleOpenNewTask(selectedProject.id)}
             onUpdateTask={handleUpdateTask}
             onEditInitiative={handleEditInitiative}
+            onDeleteInitiative={handleDeleteInitiative}
           />
         ) : (
           <>
@@ -713,6 +879,7 @@ export default function App() {
                 onViewActiveProjects={handleViewActiveProjects}
                 onViewCompletedTasks={handleViewCompletedTasks}
                 onTaskClick={handleTaskClickFromDashboard}
+                onUpdateTask={handleUpdateTask}
                 onViewGoals={handleViewGoals}
                 onDepartmentSelect={handleDepartmentSelect}
               />
@@ -736,6 +903,7 @@ export default function App() {
                 onBackToOverview={() => setSelectedDepartment(null)}
                 onDepartmentSelect={handleDepartmentSelect}
                 onAddInitiative={handleAddInitiative}
+                onUpdateTask={handleUpdateTask}
               />
             )}
 
@@ -763,6 +931,8 @@ export default function App() {
                 onTaskClick={handleTaskClickFromDashboard}
                 onAddInitiative={() => handleAddInitiative()}
                 onAddTask={handleOpenNewTask}
+                onUpdateTask={handleUpdateTask}
+                onQuickAddTask={handleAddTask}
               />
             )}
 
@@ -772,6 +942,7 @@ export default function App() {
                 tasks={tasks}
                 onProjectClick={handleProjectClick}
                 onAddInitiative={() => handleAddInitiative()}
+                onUpdateTask={handleUpdateTask}
               />
             )}
 
@@ -864,6 +1035,25 @@ export default function App() {
           onDelete={handleDeleteInitiative}
         />
       )}
+
+      {/* Settings Panel */}
+      <SettingsPanel
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onResetData={handleResetData}
+        onExportCsv={handleExportCsv}
+        onExportJson={handleExportJson}
+        onImportData={handleImportData}
+        currentUserEmail={authEmail}
+        onLogout={handleLogout}
+      />
+
+      <AuthModal
+        isOpen={!isAuthenticated}
+        domain="focuslearning.com"
+        companyName="FOCUS Learning Corporation"
+        onAuthenticate={handleAuthenticate}
+      />
     </div>
   );
 }

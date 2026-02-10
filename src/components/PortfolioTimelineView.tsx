@@ -1,12 +1,14 @@
 import { useState, useMemo } from 'react';
-import { Project, Task, Department, calculateProgress, deriveStatus } from '../types';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Calendar } from 'lucide-react';
+import { Project, Task, Department, TaskStatus, calculateProgress, deriveStatus } from '../types';
+import { ChevronLeft, ChevronRight, Calendar, ChevronDown, ChevronRight as ChevronRightSmall } from 'lucide-react';
+import { StatusCell, OwnerCell, DateCell } from './StatusCells';
 
 interface PortfolioTimelineViewProps {
   projects: Project[];
   tasks: Task[];
   onProjectClick: (project: Project) => void;
   onAddInitiative?: () => void;
+  onUpdateTask?: (taskId: string, updates: Partial<Task>) => void;
 }
 
 type TimeHorizon = 'week' | 'month' | 'quarter' | 'year';
@@ -28,7 +30,7 @@ const statusColors = {
   'at-risk': '#E94B4B',
 };
 
-export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddInitiative }: PortfolioTimelineViewProps) {
+export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddInitiative, onUpdateTask }: PortfolioTimelineViewProps) {
   const [timeHorizon, setTimeHorizon] = useState<TimeHorizon>('quarter');
   const [viewStartDate, setViewStartDate] = useState(() => {
     const date = new Date();
@@ -36,6 +38,7 @@ export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddIn
     return date;
   });
   const [expandedDepartments, setExpandedDepartments] = useState<Set<string>>(new Set(departments));
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
 
   // Calculate time range based on horizon
   const { startDate, endDate, columns, columnWidth } = useMemo(() => {
@@ -56,7 +59,7 @@ export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddIn
             date: d,
           });
         }
-        width = 120;
+        width = 100;
         break;
 
       case 'month':
@@ -73,7 +76,7 @@ export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddIn
             date: d,
           });
         }
-        width = 150;
+        width = 120;
         break;
 
       case 'quarter':
@@ -88,7 +91,7 @@ export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddIn
             date: d,
           });
         }
-        width = 180;
+        width = 140;
         break;
 
       case 'year':
@@ -102,7 +105,7 @@ export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddIn
             date: d,
           });
         }
-        width = 80;
+        width = 70;
         break;
     }
 
@@ -129,6 +132,16 @@ export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddIn
       newExpanded.add(dept);
     }
     setExpandedDepartments(newExpanded);
+  };
+
+  const toggleProject = (projectId: string) => {
+    const next = new Set(expandedProjects);
+    if (next.has(projectId)) {
+      next.delete(projectId);
+    } else {
+      next.add(projectId);
+    }
+    setExpandedProjects(next);
   };
 
   const navigateTime = (direction: 'prev' | 'next') => {
@@ -205,7 +218,7 @@ export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddIn
       <div className="bg-white border-b border-gray-200 p-4">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Portfolio Timeline</h1>
+            <h1 className="text-xl font-semibold text-gray-900">Portfolio Timeline</h1>
             <p className="text-sm text-gray-500">View all initiatives across time</p>
           </div>
           
@@ -219,14 +232,14 @@ export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddIn
               </button>
             )}
             {/* Time navigation */}
-            <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+            <div className="flex items-center gap-2 bg-gray-100 rounded-md p-1">
               <button
                 onClick={() => navigateTime('prev')}
                 className="p-2 hover:bg-white rounded-lg transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <span className="px-3 py-1 font-medium text-gray-700 min-w-[140px] text-center">
+              <span className="px-3 py-1 font-medium text-gray-700 min-w-[140px] text-center text-sm">
                 {getTimeRangeLabel()}
               </span>
               <button
@@ -246,12 +259,12 @@ export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddIn
             </button>
 
             {/* Time horizon selector */}
-            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+            <div className="flex items-center gap-1 bg-gray-100 rounded-md p-1">
               {(['week', 'month', 'quarter', 'year'] as TimeHorizon[]).map((horizon) => (
                 <button
                   key={horizon}
                   onClick={() => setTimeHorizon(horizon)}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors capitalize ${
+                  className={`px-2.5 py-1 text-sm font-medium rounded-md transition-colors capitalize ${
                     timeHorizon === horizon
                       ? 'bg-white text-gray-900 shadow-sm'
                       : 'text-gray-600 hover:text-gray-900'
@@ -287,14 +300,14 @@ export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddIn
         <div className="min-w-[900px]">
           {/* Column Headers */}
           <div className="flex sticky top-0 bg-gray-50 border-b border-gray-200 z-10">
-            <div className="w-72 flex-shrink-0 px-4 py-3 font-medium text-xs text-gray-500 uppercase tracking-wider bg-gray-50 border-r border-gray-200">
+            <div className="w-60 flex-shrink-0 px-4 py-2.5 font-medium text-[11px] text-gray-500 uppercase tracking-wider bg-gray-50 border-r border-gray-200">
               Department / Initiative
             </div>
             <div className="flex-1 flex relative" style={{ minWidth: totalWidth }}>
               {columns.map((col, idx) => (
                 <div
                   key={idx}
-                  className="flex-shrink-0 px-2 py-3 text-center text-xs font-medium text-gray-500 border-r border-gray-100"
+                  className="flex-shrink-0 px-2 py-2.5 text-center text-[11px] font-medium text-gray-500 border-r border-gray-100"
                   style={{ width: columnWidth }}
                 >
                   {col.label}
@@ -327,7 +340,7 @@ export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddIn
                   className="flex items-center bg-gray-100 border-b border-gray-200 cursor-pointer hover:bg-gray-150"
                   onClick={() => toggleDepartment(dept)}
                 >
-                  <div className="w-72 flex-shrink-0 px-4 py-3 flex items-center gap-2">
+                  <div className="w-60 flex-shrink-0 px-4 py-2.5 flex items-center gap-2">
                     <svg
                       className={`w-4 h-4 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
                       fill="none"
@@ -339,7 +352,7 @@ export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddIn
                     <span className="font-semibold text-gray-700">{dept}</span>
                     <span className="text-xs text-gray-500">({deptProjects.length})</span>
                   </div>
-                  <div className="flex-1 relative h-10" style={{ minWidth: totalWidth }}>
+                  <div className="flex-1 relative h-9" style={{ minWidth: totalWidth }}>
                     {todayPosition >= 0 && todayPosition <= 100 && (
                       <div
                         className="absolute top-0 bottom-0 border-l-2 border-dashed border-red-300"
@@ -355,6 +368,7 @@ export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddIn
                   const projectTasks = tasks.filter(t => t.projectId === project.id);
                   const progress = calculateProgress(projectTasks);
                   const status = deriveStatus(projectTasks);
+                  const isProjectExpanded = expandedProjects.has(project.id);
                   const barFillPercent = bar
                     ? (() => {
                         const range = Math.max(1, bar.endMs - bar.startMs);
@@ -364,16 +378,27 @@ export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddIn
                     : 0;
 
                   return (
-                    <div
-                      key={project.id}
-                      className={`flex border-b border-gray-100 hover:bg-blue-50 cursor-pointer transition-colors ${
-                        idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
-                      }`}
-                      onClick={() => onProjectClick(project)}
-                    >
+                    <div key={project.id}>
+                      <div
+                        className={`flex border-b border-gray-100 hover:bg-blue-50 cursor-pointer transition-colors ${
+                          idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
+                        }`}
+                        onClick={() => onProjectClick(project)}
+                        onDoubleClick={() => toggleProject(project.id)}
+                      >
                       {/* Project Info */}
-                      <div className="w-72 flex-shrink-0 px-4 py-3 pl-10 border-r border-gray-200">
+                      <div className="w-60 flex-shrink-0 px-4 py-2.5 pl-8 border-r border-gray-200">
                         <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleProject(project.id);
+                            }}
+                            className="text-gray-400 hover:text-gray-600"
+                          >
+                            {isProjectExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRightSmall className="w-4 h-4" />}
+                          </button>
                           <div
                             className="w-3 h-3 rounded-full flex-shrink-0"
                             style={{ backgroundColor: project.color }}
@@ -382,7 +407,7 @@ export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddIn
                             {project.name}
                           </span>
                         </div>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                        <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-500">
                           <span>{project.owner}</span>
                           <span>•</span>
                           <span>{progress}% complete</span>
@@ -390,13 +415,13 @@ export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddIn
                       </div>
 
                       {/* Timeline Bar */}
-                      <div className="flex-1 relative py-3" style={{ minWidth: totalWidth }}>
+                      <div className="flex-1 relative py-2.5" style={{ minWidth: totalWidth }}>
                         {/* Grid lines */}
                         {columns.map((_, idx) => (
                           <div
                             key={idx}
                             className="absolute top-0 bottom-0 border-r border-gray-100"
-                            style={{ left: `${(idx / columns.length) * 100}%` }}
+                            style={{ left: `${idx * columnWidth}px` }}
                           />
                         ))}
 
@@ -411,7 +436,7 @@ export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddIn
                         {/* Project Bar */}
                         {bar && (
                           <div
-                            className="absolute top-1/2 -translate-y-1/2 h-7 rounded-md shadow-md flex items-center"
+                            className="absolute top-1/2 -translate-y-1/2 h-6 rounded-md shadow-sm flex items-center"
                             style={{
                               left: `${bar.leftPercent}%`,
                               width: `${bar.widthPercent}%`,
@@ -433,7 +458,7 @@ export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddIn
                               }}
                             />
                             <span
-                              className="relative z-10 text-xs font-medium truncate px-2 py-0.5 rounded w-full text-center"
+                              className="relative z-10 text-[11px] font-medium truncate px-2 py-0.5 rounded w-full text-center"
                               style={{ color: '#ffffff', textShadow: '0 1px 2px rgba(12, 30, 69, 0.45)' }}
                             >
                               {project.name}
@@ -455,6 +480,58 @@ export function PortfolioTimelineView({ projects, tasks, onProjectClick, onAddIn
                           );
                         })}
                       </div>
+                      </div>
+
+                      {isProjectExpanded && (
+                        <div className="flex border-b border-gray-100 bg-white">
+                          <div className="w-60 flex-shrink-0 px-4 py-2 border-r border-gray-200 text-xs text-gray-600">
+                            Tasks
+                          </div>
+                          <div className="flex-1 py-2" style={{ minWidth: totalWidth }}>
+                            {projectTasks.length === 0 ? (
+                              <div className="px-3 text-xs text-gray-500">No tasks</div>
+                            ) : (
+                              projectTasks.map(task => (
+                                <div key={task.id} className="grid grid-cols-12 gap-2 px-3 py-1 border-t border-gray-100 first:border-t-0 items-center">
+                                  <div className="col-span-4 text-xs text-gray-700 truncate">{task.title}</div>
+                                  <div className="col-span-2">
+                                    {onUpdateTask ? (
+                                      <StatusCell
+                                        value={task.status}
+                                        type="task"
+                                        onChange={(newStatus) => onUpdateTask(task.id, { status: newStatus as TaskStatus })}
+                                        size="sm"
+                                      />
+                                    ) : (
+                                      <span className="text-xs text-gray-500">{task.status}</span>
+                                    )}
+                                  </div>
+                                  <div className="col-span-3">
+                                    {onUpdateTask ? (
+                                      <OwnerCell
+                                        value={task.assignee}
+                                        onChange={(newAssignee) => onUpdateTask(task.id, { assignee: newAssignee })}
+                                      />
+                                    ) : (
+                                      <span className="text-xs text-gray-600 truncate">{task.assignee}</span>
+                                    )}
+                                  </div>
+                                  <div className="col-span-3">
+                                    {onUpdateTask ? (
+                                      <DateCell
+                                        value={task.dueDate}
+                                        onChange={(newDate) => onUpdateTask(task.id, { dueDate: newDate })}
+                                      />
+                                    ) : (
+                                      <span className="text-xs text-gray-500">{task.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

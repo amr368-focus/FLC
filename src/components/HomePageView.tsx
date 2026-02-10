@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react';
+import { Rocket, CheckCircle2, Search, Leaf, Building2, Link2, Lightbulb, Star } from 'lucide-react';
 import './PmoHomePage.css';
 import { Project, Task, calculateProgress, deriveStatus } from '../types';
 
@@ -155,22 +156,30 @@ export function HomePageView({ projects, tasks, onViewAllProjects }: HomePageVie
         </div>
         <div className="values-grid">
           <div className="value-card reveal">
-            <div className="value-icon vi-1">🚀</div>
+            <div className="value-icon vi-1" aria-hidden="true">
+              <Rocket className="w-5 h-5" />
+            </div>
             <div className="value-title">View obstacles as opportunities</div>
             <div className="value-body">State your intent and make it happen. When something is in the way, we don't wait for permission to go around it — we get creative and find a better path forward.</div>
           </div>
           <div className="value-card reveal delay-1">
-            <div className="value-icon vi-2">✅</div>
+            <div className="value-icon vi-2" aria-hidden="true">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
             <div className="value-title">Own it</div>
             <div className="value-body">Take pride in what you do. Be accountable to yourself and to each other. PULSE makes our commitments visible — not as pressure, but as an expression of the pride we take in our work.</div>
           </div>
           <div className="value-card reveal delay-2">
-            <div className="value-icon vi-3">🔍</div>
+            <div className="value-icon vi-3" aria-hidden="true">
+              <Search className="w-5 h-5" />
+            </div>
             <div className="value-title">Embrace curiosity</div>
             <div className="value-body">Be a learn-it-all, not a know-it-all — and have fun doing it. The best teams ask better questions, stay humble, and never stop looking for a smarter way to get there.</div>
           </div>
           <div className="value-card reveal delay-3">
-            <div className="value-icon vi-4">🌱</div>
+            <div className="value-icon vi-4" aria-hidden="true">
+              <Leaf className="w-5 h-5" />
+            </div>
             <div className="value-title">Steward the future</div>
             <div className="value-body">Add value for our customers and the industries we serve. Make it scale. Every project in PULSE is a thread in a larger fabric — one that improves safety, facilitates compliance, and delivers real results.</div>
           </div>
@@ -185,25 +194,33 @@ export function HomePageView({ projects, tasks, onViewAllProjects }: HomePageVie
 
         <div className="chain-grid reveal">
           <div className="chain-card">
-            <div className="chain-card-icon">🏢</div>
+            <div className="chain-card-icon" aria-hidden="true">
+              <Building2 className="w-5 h-5" />
+            </div>
             <div className="chain-card-title">Teams stay aligned</div>
             <div className="chain-card-body">Priorities are shared. Everyone knows what the company is working toward — this week, this quarter, this year. No one is pulling in a different direction.</div>
           </div>
           <div className="chain-divider">→</div>
           <div className="chain-card">
-            <div className="chain-card-icon">🔗</div>
+            <div className="chain-card-icon" aria-hidden="true">
+              <Link2 className="w-5 h-5" />
+            </div>
             <div className="chain-card-title">Work moves faster</div>
             <div className="chain-card-body">Blockers surface early. Departments help each other. Cross-team visibility means problems get solved before they slow us down.</div>
           </div>
           <div className="chain-divider">→</div>
           <div className="chain-card">
-            <div className="chain-card-icon">💡</div>
+            <div className="chain-card-icon" aria-hidden="true">
+              <Lightbulb className="w-5 h-5" />
+            </div>
             <div className="chain-card-title">We deliver what we promised</div>
             <div className="chain-card-body">Software that works. Services that follow through. When our internal commitments are clear and kept, what we build and deliver actually matches what our customers expected.</div>
           </div>
           <div className="chain-divider">→</div>
           <div className="chain-card chain-card-highlight">
-            <div className="chain-card-icon">⭐</div>
+            <div className="chain-card-icon" aria-hidden="true">
+              <Star className="w-5 h-5" />
+            </div>
             <div className="chain-card-title">Customers feel it</div>
             <div className="chain-card-body">Better coordination means better software, stronger service, and a partner that actually delivers on what it says it will do — in the industries where it really matters.</div>
           </div>

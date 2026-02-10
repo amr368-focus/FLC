@@ -30,6 +30,7 @@ export interface TaskComment {
 export interface Task {
   id: string;
   projectId: string;
+  parentTaskId?: string;
   title: string;
   description: string;
   status: TaskStatus;

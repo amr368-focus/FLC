@@ -9,9 +9,9 @@ interface TaskCardProps {
 }
 
 const priorityColors = {
-  low: 'text-gray-500 bg-gray-100',
-  medium: 'text-yellow-600 bg-yellow-50',
-  high: 'text-red-600 bg-red-50',
+  low: { textColor: '#6b7280', bgColor: '#f3f4f6' },
+  medium: { textColor: '#d97706', bgColor: '#fffbeb' },
+  high: { textColor: '#dc2626', bgColor: '#fef2f2' },
 };
 
 export function TaskCard({ task, onEdit, onDelete, onDragStart }: TaskCardProps) {
@@ -43,8 +43,11 @@ export function TaskCard({ task, onEdit, onDelete, onDragStart }: TaskCardProps)
 
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <Flag className={`w-3.5 h-3.5 ${priorityColors[task.priority].split(' ')[0]}`} />
-          <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${priorityColors[task.priority]}`}>
+          <Flag className="w-3.5 h-3.5" style={{ color: priorityColors[task.priority].textColor }} />
+          <span 
+            style={{ backgroundColor: priorityColors[task.priority].bgColor, color: priorityColors[task.priority].textColor }}
+            className="text-xs px-2 py-0.5 rounded-full capitalize"
+          >
             {task.priority}
           </span>
         </div>

@@ -421,6 +421,29 @@
   }
 }
 
+/* PMO dock scroll area - keep scrollbar visible on Windows */
+.pmo-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #9ca3af transparent;
+}
+
+.pmo-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.pmo-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pmo-scroll::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 999px;
+}
+
+.pmo-scroll::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
 @layer utilities {
   .btn-teal {
     background-color: #0BAFA6;

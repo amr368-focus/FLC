@@ -37,8 +37,8 @@ export function PmoMeetingDock({
 
   useEffect(() => {
     if (!position) {
-      const width = 360;
-      const height = 520;
+      const width = 380;
+      const height = 680;
       const margin = 24;
       const x = anchor.endsWith('right')
         ? Math.max(margin, window.innerWidth - width - margin)
@@ -61,8 +61,8 @@ export function PmoMeetingDock({
 
     const handleUp = () => {
       if (position) {
-        const width = 360;
-        const height = 520;
+        const width = 380;
+        const height = 680;
         const margin = 24;
         const centerX = position.x + width / 2;
         const centerY = position.y + height / 2;
@@ -99,7 +99,7 @@ export function PmoMeetingDock({
 
   return (
     <div
-      className="fixed w-[360px] h-[520px] bg-white border border-gray-200 rounded-xl shadow-xl z-40 overflow-hidden flex flex-col"
+      className="fixed w-[380px] h-[85vh] max-h-[680px] bg-white border border-gray-200 rounded-xl shadow-2xl z-[100] overflow-hidden flex flex-col min-h-0"
       style={position ? { left: position.x, top: position.y } : undefined}
     >
       <div
@@ -142,7 +142,13 @@ export function PmoMeetingDock({
         </div>
       </div>
 
-      <div className="p-4 space-y-3 flex-1 overflow-y-auto">
+      <div
+        className="p-4 space-y-3 flex-1 min-h-0 overflow-y-scroll overscroll-contain pmo-scroll"
+        onWheel={(event) => event.stopPropagation()}
+        onTouchMove={(event) => event.stopPropagation()}
+        tabIndex={0}
+        style={{ scrollbarGutter: 'stable' }}
+      >
         <div>
           <label className="block text-[11px] font-medium text-gray-600 mb-1">Meeting</label>
           <select

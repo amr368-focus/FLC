@@ -1,4 +1,4 @@
-import { Plus, Search, LayoutGrid, List, Calendar, User } from 'lucide-react';
+import { Plus, Search, LayoutGrid, List, Calendar, User, ChevronRight, ChevronDown, CheckSquare, CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
 import { Project, Task, calculateProgress, deriveStatus } from '../types';
 
@@ -10,15 +10,31 @@ interface TeamViewProps {
 }
 
 const statusConfig = {
-  'at-risk': { label: 'At Risk', color: 'text-red-600', bg: 'bg-red-50', dot: 'bg-red-600' },
-  'needs-attention': { label: 'Needs Attention', color: 'text-orange-600', bg: 'bg-orange-50', dot: 'bg-orange-500' },
-  'on-track': { label: 'On Track', color: 'text-green-600', bg: 'bg-green-50', dot: 'bg-green-600' },
+  'at-risk': { label: 'At Risk', textColor: '#dc2626', bgColor: '#fef2f2', dotColor: '#dc2626' },
+  'needs-attention': { label: 'Needs Attention', textColor: '#ea580c', bgColor: '#fff7ed', dotColor: '#f97316' },
+  'on-track': { label: 'On Track', textColor: '#16a34a', bgColor: '#f0fdf4', dotColor: '#16a34a' },
+};
+
+const taskStatusConfig = {
+  'todo': { label: 'To Do', bgColor: '#64748b', textColor: '#ffffff' },
+  'in-progress': { label: 'In Progress', bgColor: '#2563eb', textColor: '#ffffff' },
+  'done': { label: 'Done', bgColor: '#059669', textColor: '#ffffff' },
 };
 
 export function TeamView({ projects, tasks, onProjectClick, onAddInitiative }: TeamViewProps) {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+
+  const toggleProject = (projectId: string) => {
+    setExpandedProjects(prev => {
+      const next = new Set(prev);
+      if (next.has(projectId)) next.delete(projectId);
+      else next.add(projectId);
+      return next;
+    });
+  };
 
   const getProjectProgress = (projectId: string) => {
     const projectTasks = tasks.filter(t => t.projectId === projectId);
@@ -112,8 +128,8 @@ export function TeamView({ projects, tasks, onProjectClick, onAddInitiative }: T
         {viewMode === 'list' ? (
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             {/* Table Header */}
-            <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-700 uppercase tracking-wider">
-              <div className="col-span-4">Initiative Name</div>
+            <div className="grid grid-cols-12 gap-2 px-6 py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-700 uppercase tracking-wider">
+              <div className="col-span-4">Initiative / Task</div>
               <div className="col-span-2">Status</div>
               <div className="col-span-2">Owner</div>
               <div className="col-span-2">Due Date</div>
@@ -131,62 +147,119 @@ export function TeamView({ projects, tasks, onProjectClick, onAddInitiative }: T
                   const status = getProjectStatus(project.id);
                   const progress = getProjectProgress(project.id);
                   const config = statusConfig[status];
+                  const projectTasks = tasks.filter(t => t.projectId === project.id);
+                  const isExpanded = expandedProjects.has(project.id);
 
                   return (
-                    <div
-                      key={project.id}
-                      onClick={() => onProjectClick(project)}
-                      className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-gray-50 cursor-pointer transition-colors"
-                    >
-                      <div className="col-span-4">
-                        <div className="flex items-center gap-2">
-                          {project.isKeyInitiative && <span>⭐</span>}
-                          <div>
-                            <div className="font-medium text-gray-900">{project.name}</div>
-                            <div className="text-sm text-gray-600 line-clamp-1">{project.description}</div>
+                    <div key={project.id}>
+                      {/* Initiative Row */}
+                      <div className="grid grid-cols-12 gap-2 px-6 py-4 items-center hover:bg-gray-50 transition-colors">
+                        <div className="col-span-4 flex items-center gap-2 min-w-0">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleProject(project.id);
+                            }}
+                            className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="w-5 h-5" />
+                            ) : (
+                              <ChevronRight className="w-5 h-5" />
+                            )}
+                          </button>
+                          <div
+                            className="cursor-pointer flex-1 min-w-0"
+                            onClick={() => onProjectClick(project)}
+                          >
+                            <div className="flex items-center gap-2">
+                              {project.isKeyInitiative && <span className="flex-shrink-0">⭐</span>}
+                              <span className="font-medium text-gray-900 truncate">{project.name}</span>
+                            </div>
+                            <div className="text-sm text-gray-600 truncate">{project.description}</div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="col-span-2">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${config.color} ${config.bg}`}>
-                          <div className={`w-1.5 h-1.5 rounded-full ${config.dot}`}></div>
-                          {config.label}
-                        </span>
-                      </div>
-
-                      <div className="col-span-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-medium text-blue-700">
-                            {project.owner.split(' ').map(n => n[0]).join('')}
-                          </div>
-                          <span className="text-sm text-gray-900">{project.owner}</span>
-                        </div>
-                      </div>
-
-                      <div className="col-span-2">
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                          <span className="text-sm text-gray-900">
-                            {project.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        <div className="col-span-2">
+                          <span
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap"
+                            style={{ color: config.textColor, backgroundColor: config.bgColor }}
+                          >
+                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: config.dotColor }}></div>
+                            {config.label}
                           </span>
                         </div>
-                      </div>
 
-                      <div className="col-span-2">
-                        <div className="flex items-center gap-3">
-                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full"
-                              style={{
-                                width: `${progress}%`,
-                                backgroundColor: status === 'at-risk' ? '#EF4444' : status === 'needs-attention' ? '#F59E0B' : '#10B981',
-                              }}
-                            />
+                        <div className="col-span-2 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-medium text-blue-700 flex-shrink-0">
+                              {project.owner.split(' ').map(n => n[0]).join('')}
+                            </div>
+                            <span className="text-sm text-gray-900 truncate">{project.owner}</span>
                           </div>
-                          <span className="text-sm font-medium text-gray-900 min-w-[3rem]">{progress}%</span>
+                        </div>
+
+                        <div className="col-span-2">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                            <span className="text-sm text-gray-900 whitespace-nowrap">
+                              {project.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="col-span-2">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full"
+                                style={{
+                                  width: `${progress}%`,
+                                  backgroundColor: status === 'at-risk' ? '#EF4444' : status === 'needs-attention' ? '#F59E0B' : '#10B981',
+                                }}
+                              />
+                            </div>
+                            <span className="text-xs font-medium text-gray-900">{progress}%</span>
+                          </div>
                         </div>
                       </div>
+
+                      {/* Tasks (when expanded) */}
+                      {isExpanded && projectTasks.map((task) => {
+                        const taskConfig = taskStatusConfig[task.status];
+                        return (
+                          <div
+                            key={task.id}
+                            className="grid grid-cols-12 gap-2 px-6 py-3 bg-gray-50/50 hover:bg-gray-100/50 items-center"
+                          >
+                            <div className="col-span-4 flex items-center gap-2 pl-8 min-w-0">
+                              <CheckSquare className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                              <span className="text-sm text-gray-700 truncate">{task.title}</span>
+                            </div>
+                            <div className="col-span-2">
+                              <span
+                                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                style={{ backgroundColor: taskConfig.bgColor, color: taskConfig.textColor }}
+                              >
+                                {taskConfig.label}
+                              </span>
+                            </div>
+                            <div className="col-span-2 text-sm text-gray-600">
+                              {task.assignee || '-'}
+                            </div>
+                            <div className="col-span-2 text-sm text-gray-600">
+                              {task.dueDate ? task.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-'}
+                            </div>
+                            <div className="col-span-2 text-sm text-gray-600">
+                              {task.status === 'done' ? (
+                                <CheckCircle2 className="w-4 h-4 text-green-600" />
+                              ) : (
+                                <span className="text-xs text-gray-400">-</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 })
@@ -209,8 +282,11 @@ export function TeamView({ projects, tasks, onProjectClick, onAddInitiative }: T
                 >
                   <div className="flex items-start justify-between mb-3">
                     {project.isKeyInitiative && <span className="text-lg">⭐</span>}
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${config.color} ${config.bg} ml-auto`}>
-                      <div className={`w-1.5 h-1.5 rounded-full ${config.dot}`}></div>
+                    <span
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ml-auto"
+                      style={{ color: config.textColor, backgroundColor: config.bgColor }}
+                    >
+                      <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: config.dotColor }}></div>
                       {config.label}
                     </span>
                   </div>
